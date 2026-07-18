@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Binder Builder — Compilations, Convenience Volumes &amp; Case Binders</title>
+<style>
+  :root {
+    --ink: #1c2733; --muted: #66717d; --line: #d8dde3; --bg: #f4f6f8;
+    --card: #ffffff; --accent: #14406b; --accent2: #1a5a94; --ok: #1e7d46; --err: #b3362b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; color: var(--ink); background: var(--bg); }
+  header.top { background: var(--accent); color: #fff; padding: 18px 28px; }
+  header.top h1 { margin: 0; font-size: 21px; font-weight: 650; letter-spacing: .2px; }
+  header.top p { margin: 4px 0 0; opacity: .85; font-size: 13.5px; }
+  main { max-width: 1060px; margin: 0 auto; padding: 22px 20px 140px; }
+  section.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 18px; overflow: hidden; }
+  section.card > h2 { margin: 0; padding: 13px 18px; font-size: 15px; font-weight: 650; background: #eef1f4; border-bottom: 1px solid var(--line); cursor: pointer; user-select: none; }
+  section.card > h2 .chev { float: right; transition: transform .15s; color: var(--muted); }
+  section.card.closed .body { display: none; }
+  section.card.closed h2 .chev { transform: rotate(-90deg); }
+  .body { padding: 16px 18px; }
+  label.f { display: block; font-size: 12.5px; font-weight: 600; color: var(--muted); margin: 10px 0 3px; text-transform: uppercase; letter-spacing: .4px; }
+  input[type=text], input[type=number], select, textarea {
+    width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; font: inherit; background: #fff; color: var(--ink);
+  }
+  textarea { resize: vertical; }
+  textarea#causeTitle { font-family: "Times New Roman", serif; font-size: 14px; min-height: 220px; white-space: pre; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .row > div { flex: 1; min-width: 150px; }
+  .hint { font-size: 12.5px; color: var(--muted); margin-top: 5px; }
+  .hint code { background: #eef1f4; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+  table.cols, table.docs { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.cols th, table.docs th { text-align: left; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; padding: 6px 6px; border-bottom: 1px solid var(--line); }
+  table.cols td, table.docs td { padding: 6px 6px; border-bottom: 1px solid #eceff2; vertical-align: top; }
+  button { font: inherit; cursor: pointer; border-radius: 7px; border: 1px solid var(--line); background: #fff; padding: 7px 13px; color: var(--ink); }
+  button:hover { border-color: #b9c2cb; background: #f8fafb; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button.primary:hover { background: var(--accent2); }
+  button.mini { padding: 2px 8px; font-size: 13px; line-height: 1.4; }
+  button.danger { color: var(--err); }
+  button:disabled { opacity: .45; cursor: default; }
+  .doccard { border: 1px solid var(--line); border-radius: 9px; padding: 12px 14px; margin-bottom: 12px; background: #fbfcfd; }
+  .doccard .dochead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+  .doccard .fname { font-weight: 600; font-size: 13.5px; }
+  .doccard .pcount { color: var(--muted); font-size: 12.5px; }
+  .doccard .spacer { flex: 1; }
+  .fieldgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 8px 12px; }
+  .fieldgrid label { display: block; font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 2px; }
+  .bkrow { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+  .bkrow label { font-size: 12px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+  footer.bar { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid var(--line); padding: 12px 20px; box-shadow: 0 -4px 14px rgba(0,0,0,.06); }
+  footer.bar .inner { max-width: 1060px; margin: 0 auto; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  #status { font-size: 13.5px; color: var(--muted); flex: 1; min-width: 200px; }
+  #status.ok { color: var(--ok); font-weight: 600; }
+  #status.err { color: var(--err); font-weight: 600; }
+  .empty { color: var(--muted); font-size: 14px; padding: 14px 4px; }
+  .libwarn { background: #fdf3e7; border: 1px solid #eccb9a; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-size: 13.5px; display: none; }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Binder Builder</h1>
+  <p>Cause title + index + merged PDFs with automatic page numbering &amp; bookmarks — everything stays on your Mac.</p>
+</header>
+<main>
+  <div class="libwarn" id="libwarn">The PDF/Word libraries could not load. Connect to the internet once and reload this page (they are fetched from a CDN on first use).</div>
+
+  <!-- 1. TITLE PAGE -->
+  <section class="card" id="sec1">
+    <h2 onclick="toggle(this)">1 · Title Page <span class="chev">▾</span></h2>
+    <div class="body">
+      <label class="f">Cause Title</label>
+      <textarea id="causeTitle" spellcheck="false"></textarea>
+      <div class="hint">
+        Each line is <b>centred</b> by default · start a line with <code>L:</code> to left-align it ·
+        wrap text in <code>**double asterisks**</code> to make it <b>bold</b> ·
+        press <code>Tab</code> between a party's name and their designation to push the designation to the right margin
+        (e.g. <code>L:ABC Ltd.&nbsp;⇥&nbsp;…Petitioner</code>). Blank lines create spacing.
+      </div>
+      <div class="row">
+        <div style="flex:2">
+          <label class="f">Document Title (shown between two horizontal rules, bold &amp; centred)</label>
+          <input type="text" id="docTitle">
+        </div>
+        <div>
+          <label class="f">Index Heading</label>
+          <input type="text" id="indexHeading">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. FORMATTING -->
+  <section class="card" id="sec2">
+    <h2 onclick="toggle(this)">2 · Formatting <span class="chev">▾</span></h2>
+    <div class="body">
+      <div class="row">
+        <div><label class="f">Font</label>
+          <select id="fontFamily"><option value="times">Times New Roman</option><option value="helvetica">Arial / Helvetica</option></select></div>
+        <div><label class="f">Base Size (pt)</label><input type="number" id="baseSize" min="8" max="16" step="0.5"></div>
+        <div><label class="f">Cover Page Size</label>
+          <select id="pageSize"><option value="letter">Letter (8.5 × 11)</option><option value="a4">A4</option></select></div>
+        <div><label class="f">Header Row Shade</label><input type="text" id="headerFill" placeholder="#D9D9D9"></div>
+      </div>
+      <div class="row">
+        <div><label class="f">Page No. Size (pt)</label><input type="number" id="pnSize" min="8" max="48"></div>
+        <div><label class="f">Page No. Style</label>
+          <select id="pnBold"><option value="1">Bold</option><option value="0">Regular</option></select></div>
+        <div><label class="f">Page No. Position</label>
+          <select id="pnPos">
+            <option value="tr">Top right</option><option value="tc">Top centre</option>
+            <option value="br">Bottom right</option><option value="bc">Bottom centre</option>
+          </select></div>
+        <div><label class="f">Table Borders</label>
+          <select id="borders"><option value="1">On</option><option value="0">Off</option></select></div>
+      </div>
+      <div class="hint">Numbering always starts at 1 from the title page and is stamped on every page automatically.</div>
+    </div>
+  </section>
+
+  <!-- 3. INDEX COLUMNS -->
+  <section class="card" id="sec3">
+    <h2 onclick="toggle(this)">3 · Index Columns <span class="chev">▾</span></h2>
+    <div class="body">
+      <table class="cols" id="colTable">
+        <thead><tr><th style="width:34%">Column Name</th><th style="width:30%">Content Type</th><th style="width:14%">Width</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div style="margin-top:10px"><button class="mini" onclick="addColumn()">+ Add column</button></div>
+      <div class="hint">
+        <b>Auto serial</b> numbers rows 1., 2., 3.… · <b>Case name + citation</b> gives two boxes per document (name prints <b>bold</b>, citation <i>italic</i>) ·
+        <b>Free text</b> is any text you type per document (supports <code>**bold**</code>) · <b>Auto page range</b> fills in "x - y" from the actual pagination.
+        Width is relative (e.g. 7 / 59 / 22 / 12).
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. DOCUMENTS -->
+  <section class="card" id="sec4">
+    <h2 onclick="toggle(this)">4 · Documents <span class="chev">▾</span></h2>
+    <div class="body">
+      <input type="file" id="fileInput" accept="application/pdf" multiple style="display:none">
+      <button class="primary" onclick="document.getElementById('fileInput').click()">+ Add PDFs</button>
+      <span class="hint" style="margin-left:8px">They will appear in the binder in the order below — use ↑ ↓ to rearrange.</span>
+      <div id="docList" style="margin-top:14px"><div class="empty">No documents yet.</div></div>
+    </div>
+  </section>
+</main>
+
+<footer class="bar"><div class="inner">
+  <button class="primary" id="btnBuild" onclick="doBuild()">Build PDF Binder</button>
+  <button id="btnWord" onclick="doWord()">Export Cover + Index (Word)</button>
+  <button onclick="saveTemplate()">Save Template</button>
+  <button onclick="document.getElementById('tplInput').click()">Load Template</button>
+  <input type="file" id="tplInput" accept=".json" style="display:none">
+  <div id="status">Ready.</div>
+</div></footer>
+
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"
+        onerror="this.onerror=null;var s=document.createElement('script');s.src='https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js';document.head.appendChild(s);"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.min.js"
+        onerror="this.onerror=null;var s=document.createElement('script');s.src='https://unpkg.com/docx@8.5.0/build/index.umd.js';document.head.appendChild(s);"></script>
+
+<script>
+/* ============ BINDER CORE (pure functions, testable in Node) ============
+   Everything here takes (PDFLib, config, docs) and returns bytes.
+   config = {
+     causeTitle: string (lines; "L:" prefix = left-align, **bold**, TAB = left/right split),
+     docTitle: string,
+     indexHeading: string,
+     fontFamily: "times" | "helvetica",
+     baseSize: number, pageSize: "letter"|"a4",
+     pageNum: { size, bold, pos: "tr"|"tc"|"br"|"bc" },
+     headerFill: "#D9D9D9", borders: true,
+     columns: [ {name, type: "serial"|"text"|"case"|"pages", weight} ]
+   }
+   docs = [ { bytes: Uint8Array|ArrayBuffer, pageCount, fields: {colIndex: value or {name, cite}}, bookmark } ]
+*/
+const BinderCore = (() => {
+
+  const PAGE_SIZES = { letter: [612, 792], a4: [595.28, 841.89] };
+  const MARGIN = 72;
+
+  function hexToRgb(PDFLib, hex) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex || "#D9D9D9");
+    const v = parseInt(m ? m[1] : "D9D9D9", 16);
+    return PDFLib.rgb(((v >> 16) & 255) / 255, ((v >> 8) & 255) / 255, (v & 255) / 255);
+  }
+
+  async function embedFonts(PDFLib, pdfDoc, family) {
+    const S = PDFLib.StandardFonts;
+    if (family === "helvetica") {
+      return {
+        reg: await pdfDoc.embedFont(S.Helvetica),
+        bold: await pdfDoc.embedFont(S.HelveticaBold),
+        ital: await pdfDoc.embedFont(S.HelveticaOblique),
+        boldItal: await pdfDoc.embedFont(S.HelveticaBoldOblique),
+      };
+    }
+    return {
+      reg: await pdfDoc.embedFont(S.TimesRoman),
+      bold: await pdfDoc.embedFont(S.TimesRomanBold),
+      ital: await pdfDoc.embedFont(S.TimesRomanItalic),
+      boldItal: await pdfDoc.embedFont(S.TimesRomanBoldItalic),
+    };
+  }
+
+  // Parse **bold** into runs.
+  function parseRuns(text, baseBold, baseItal) {
+    const runs = [];
+    let i = 0, bold = !!baseBold;
+    const parts = String(text).split("**");
+    parts.forEach((part, idx) => {
+      if (part) runs.push({ text: part, bold: idx % 2 === 1 ? !baseBold : baseBold, ital: !!baseItal });
+    });
+    return runs.length ? runs : [{ text: "", bold: baseBold, ital: !!baseItal }];
+  }
+
+  function pickFont(fonts, r) {
+    if (r.bold && r.ital) return fonts.boldItal;
+    if (r.bold) return fonts.bold;
+    if (r.ital) return fonts.ital;
+    return fonts.reg;
+  }
+
+  // Greedy word-wrap of styled runs into lines fitting maxWidth. Returns [ [run,...], ... ]
+  function wrapRuns(fonts, runs, size, maxWidth) {
+    const words = [];
+    runs.forEach(r => {
+      String(r.text).split(/(\s+)/).forEach(tok => {
+        if (tok !== "") words.push({ text: tok, bold: r.bold, ital: r.ital });
+      });
+    });
+    const lines = [];
+    let line = [], w = 0;
+    const width = t => pickFont(fonts, t).widthOfTextAtSize(t.text, size);
+    for (const tok of words) {
+      const tw = width(tok);
+      if (w + tw > maxWidth && line.length) {
+        // trim trailing spaces
+        while (line.length && /^\s+$/.test(line[line.length - 1].text)) line.pop();
+        lines.push(line);
+        line = []; w = 0;
+        if (/^\s+$/.test(tok.text)) continue; // don't start line with space
+      }
+      // hard-break very long single tokens
+      if (tw > maxWidth) {
+        let chunk = "";
+        for (const ch of tok.text) {
+          const t2 = { ...tok, text: chunk + ch };
+          if (width(t2) > maxWidth && chunk) {
+            lines.push([{ ...tok, text: chunk }]);
+            chunk = ch;
+          } else chunk += ch;
+        }
+        if (chunk) { line.push({ ...tok, text: chunk }); w += width({ ...tok, text: chunk }); }
+        continue;
+      }
+      line.push(tok); w += tw;
+    }
+    while (line.length && /^\s+$/.test(line[line.length - 1].text)) line.pop();
+    if (line.length) lines.push(line);
+    return lines.length ? lines : [[]];
+  }
+
+  function lineWidth(fonts, line, size) {
+    return line.reduce((a, t) => a + pickFont(fonts, t).widthOfTextAtSize(t.text, size), 0);
+  }
+
+  function drawLineRuns(page, fonts, line, size, x, y) {
+    let cx = x;
+    for (const t of line) {
+      const f = pickFont(fonts, t);
+      page.drawText(t.text, { x: cx, y, size, font: f });
+      cx += f.widthOfTextAtSize(t.text, size);
+    }
+  }
+
+  // ---- build cell content (runs) for a column/doc ----
+  function cellRuns(col, ci, doc, serial, range) {
+    if (col.type === "serial") return [{ text: serial + ".", bold: false, ital: false }];
+    if (col.type === "pages") return [{ text: range, bold: false, ital: false }];
+    const key = col.id != null ? col.id : ci;
+    const v = (doc.fields || {})[key];
+    if (col.type === "case") {
+      const name = (v && v.name) || "", cite = (v && v.cite) || "";
+      const runs = [{ text: name, bold: true, ital: false }];
+      if (cite) runs.push({ text: ", ", bold: false, ital: false }, { text: cite, bold: false, ital: true });
+      return runs;
+    }
+    return parseRuns(v || "", false, false);
+  }
+
+  // ---- COVER + INDEX ----
+  // ranges: array of "start - end" strings (or placeholders)
+  async function buildCover(PDFLib, config, docs, ranges) {
+    const pdf = await PDFLib.PDFDocument.create();
+    const fonts = await embedFonts(PDFLib, pdf, config.fontFamily);
+    const [PW, PH] = PAGE_SIZES[config.pageSize] || PAGE_SIZES.letter;
+    const size = config.baseSize || 12;
+    const LH = size * 1.45;
+    const usable = PW - 2 * MARGIN;
+    let page = pdf.addPage([PW, PH]);
+    let y = PH - MARGIN - size;
+
+    const newPage = () => { page = pdf.addPage([PW, PH]); y = PH - MARGIN - size; };
+    const need = h => { if (y - h < MARGIN) newPage(); };
+
+    // --- cause title ---
+    const lines = String(config.causeTitle || "").replace(/\r/g, "").split("\n");
+    for (let raw of lines) {
+      if (raw.trim() === "") { y -= LH * 0.6; continue; }
+      let align = "center";
+      if (/^L:/.test(raw)) { align = "left"; raw = raw.slice(2); }
+      if (raw.includes("\t")) {
+        const [l, r] = raw.split("\t");
+        const lr = parseRuns(l, false), rr = parseRuns(r, false);
+        need(LH);
+        drawLineRuns(page, fonts, lr, size, MARGIN, y);
+        const rw = lineWidth(fonts, rr, size);
+        drawLineRuns(page, fonts, rr, size, PW - MARGIN - rw, y);
+        y -= LH;
+        continue;
+      }
+      const runs = parseRuns(raw, false);
+      const wrapped = wrapRuns(fonts, runs, size, usable);
+      for (const ln of wrapped) {
+        need(LH);
+        const lw = lineWidth(fonts, ln, size);
+        const x = align === "center" ? MARGIN + (usable - lw) / 2 : MARGIN;
+        drawLineRuns(page, fonts, ln, size, x, y);
+        y -= LH;
+      }
+    }
+
+    // --- document title between rules ---
+    if (config.docTitle && config.docTitle.trim()) {
+      y -= LH * 0.5;
+      need(LH * 3);
+      page.drawLine({ start: { x: MARGIN, y: y + LH * 0.9 }, end: { x: PW - MARGIN, y: y + LH * 0.9 }, thickness: 0.7 });
+      const tRuns = parseRuns(config.docTitle, true);
+      const wrapped = wrapRuns(fonts, tRuns, size, usable);
+      for (const ln of wrapped) {
+        need(LH);
+        const lw = lineWidth(fonts, ln, size);
+        drawLineRuns(page, fonts, ln, size, MARGIN + (usable - lw) / 2, y);
+        y -= LH;
+      }
+      page.drawLine({ start: { x: MARGIN, y: y + LH * 0.55 }, end: { x: PW - MARGIN, y: y + LH * 0.55 }, thickness: 0.7 });
+      y -= LH * 0.8;
+    }
+
+    // --- INDEX heading ---
+    if (config.indexHeading && config.indexHeading.trim()) {
+      y -= LH * 0.4;
+      need(LH);
+      const hRuns = [{ text: config.indexHeading, bold: true, ital: false }];
+      const hw = lineWidth(fonts, hRuns, size);
+      drawLineRuns(page, fonts, hRuns, size, MARGIN + (usable - hw) / 2, y);
+      y -= LH * 1.4;
+    }
+
+    // --- table ---
+    const cols = config.columns;
+    const totW = cols.reduce((a, c) => a + (+c.weight || 1), 0);
+    const colW = cols.map(c => (+c.weight || 1) / totW * usable);
+    const PAD = 5;
+    const cellLH = size * 1.25;
+    const fill = hexToRgb(PDFLib, config.headerFill);
+
+    const layoutRow = runsPerCell =>
+      runsPerCell.map((runs, i) => wrapRuns(fonts, runs, size, colW[i] - 2 * PAD));
+
+    const rowHeight = wrapped => Math.max(...wrapped.map(l => l.length)) * cellLH + 2 * PAD + 2;
+
+    const drawRow = (wrapped, h, opts) => {
+      let x = MARGIN;
+      const { header } = opts || {};
+      for (let i = 0; i < cols.length; i++) {
+        if (header) page.drawRectangle({ x, y: y - h, width: colW[i], height: h, color: fill });
+        if (config.borders !== false)
+          page.drawRectangle({ x, y: y - h, width: colW[i], height: h, borderColor: PDFLib.rgb(0, 0, 0), borderWidth: 0.7 });
+        const lines2 = wrapped[i];
+        let ty = y - PAD - size;
+        for (const ln of lines2) {
+          const lw = lineWidth(fonts, ln, size);
+          const centered = header || cols[i].type !== "case";
+          const tx = centered ? x + (colW[i] - lw) / 2 : x + PAD;
+          drawLineRuns(page, fonts, ln, size, Math.max(x + PAD, tx), ty);
+          ty -= cellLH;
+        }
+        x += colW[i];
+      }
+      y -= h;
+    };
+
+    const headerCells = cols.map(c => [{ text: c.name, bold: true, ital: false }]);
+    const hWrapped = layoutRow(headerCells);
+    const hH = rowHeight(hWrapped);
+
+    const drawHeader = () => drawRow(hWrapped, hH, { header: true });
+    if (y - hH < MARGIN) newPage();
+    drawHeader();
+
+    docs.forEach((doc, di) => {
+      const cells = cols.map((c, ci) => cellRuns(c, ci, doc, di + 1, ranges[di]));
+      const wrapped = layoutRow(cells);
+      const h = rowHeight(wrapped);
+      if (y - h < MARGIN) { newPage(); drawHeader(); }   // keep rows whole; repeat header
+      drawRow(wrapped, h, {});
+    });
+
+    return pdf;
+  }
+
+  // ---- page number stamp ----
+  function stampPage(PDFLib, page, num, font, cfg) {
+    const mb = page.getMediaBox();
+    const s = cfg.size || 20;
+    const label = String(num);
+    const tw = font.widthOfTextAtSize(label, s);
+    const rot = (page.getRotation().angle % 360 + 360) % 360;
+    const pos = cfg.pos || "tr";
+    // coordinates in unrotated user space for the four positions
+    let x, y;
+    const top = mb.y + mb.height - 40, bottom = mb.y + 25;
+    const right = mb.x + mb.width - 45, centerX = mb.x + mb.width / 2;
+    if (rot === 0) {
+      x = pos.endsWith("c") ? centerX - tw / 2 : right - tw;
+      y = pos.startsWith("t") ? top : bottom;
+      page.drawText(label, { x, y, size: s, font });
+    } else if (rot === 90) {
+      // visual top-right maps to (right side, y grows along visual x)
+      x = pos.startsWith("t") ? mb.x + mb.width - 40 : mb.x + 25 + s;
+      y = pos.endsWith("c") ? mb.y + mb.height / 2 - tw / 2 : mb.y + mb.height - 45 - tw;
+      page.drawText(label, { x, y, size: s, font, rotate: PDFLib.degrees(90) });
+    } else if (rot === 180) {
+      x = pos.endsWith("c") ? centerX + tw / 2 : mb.x + 45 + tw;
+      y = pos.startsWith("t") ? mb.y + 40 : mb.y + mb.height - 25;
+      page.drawText(label, { x, y, size: s, font, rotate: PDFLib.degrees(180) });
+    } else {
+      x = pos.startsWith("t") ? mb.x + 40 : mb.x + mb.width - 25 - s;
+      y = pos.endsWith("c") ? mb.y + mb.height / 2 + tw / 2 : mb.y + 45 + tw;
+      page.drawText(label, { x, y, size: s, font, rotate: PDFLib.degrees(270) });
+    }
+  }
+
+  // ---- outlines / bookmarks ----
+  function addOutlines(PDFLib, pdfDoc, items) {
+    // items: [{title, pageIndex}]
+    if (!items.length) return;
+    const ctx = pdfDoc.context;
+    const outlinesRef = ctx.nextRef();
+    const refs = items.map(() => ctx.nextRef());
+    items.forEach((it, i) => {
+      const pageRef = pdfDoc.getPage(it.pageIndex).ref;
+      const d = new Map();
+      d.set(PDFLib.PDFName.of("Title"), PDFLib.PDFHexString.fromText(it.title));
+      d.set(PDFLib.PDFName.of("Parent"), outlinesRef);
+      d.set(PDFLib.PDFName.of("Dest"),
+        ctx.obj([pageRef, PDFLib.PDFName.of("XYZ"), PDFLib.PDFNull, PDFLib.PDFNull, PDFLib.PDFNull]));
+      if (i > 0) d.set(PDFLib.PDFName.of("Prev"), refs[i - 1]);
+      if (i < items.length - 1) d.set(PDFLib.PDFName.of("Next"), refs[i + 1]);
+      ctx.assign(refs[i], PDFLib.PDFDict.fromMapWithContext(d, ctx));
+    });
+    const od = new Map();
+    od.set(PDFLib.PDFName.of("Type"), PDFLib.PDFName.of("Outlines"));
+    od.set(PDFLib.PDFName.of("First"), refs[0]);
+    od.set(PDFLib.PDFName.of("Last"), refs[refs.length - 1]);
+    od.set(PDFLib.PDFName.of("Count"), PDFLib.PDFNumber.of(items.length));
+    ctx.assign(outlinesRef, PDFLib.PDFDict.fromMapWithContext(od, ctx));
+    pdfDoc.catalog.set(PDFLib.PDFName.of("Outlines"), outlinesRef);
+    pdfDoc.catalog.set(PDFLib.PDFName.of("PageMode"), PDFLib.PDFName.of("UseOutlines"));
+  }
+
+  // ---- main build ----
+  async function buildBinder(PDFLib, config, docs, onStatus) {
+    const say = onStatus || (() => {});
+    // load source docs once
+    say("Reading PDFs…");
+    const srcDocs = [];
+    for (const d of docs) {
+      const sd = await PDFLib.PDFDocument.load(d.bytes, { ignoreEncryption: true });
+      srcDocs.push(sd);
+      d.pageCount = sd.getPageCount();
+    }
+    // pass 1: cover with placeholder ranges to find cover page count (iterate to stable)
+    say("Laying out index…");
+    let coverPages = 1, ranges = [];
+    for (let iter = 0; iter < 4; iter++) {
+      let start = coverPages + 1;
+      ranges = docs.map(d => {
+        const r = `${start} - ${start + d.pageCount - 1}`;
+        start += d.pageCount;
+        return r;
+      });
+      const cover = await buildCover(PDFLib, config, docs, ranges);
+      const n = cover.getPageCount();
+      if (n === coverPages) break;
+      coverPages = n;
+    }
+    // final cover
+    const cover = await buildCover(PDFLib, config, docs, ranges);
+    coverPages = cover.getPageCount();
+
+    say("Merging documents…");
+    const out = await PDFLib.PDFDocument.create();
+    const coverCopied = await out.copyPages(cover, cover.getPageIndices());
+    coverCopied.forEach(p => out.addPage(p));
+    const starts = [];
+    let cursor = coverPages;
+    for (let i = 0; i < srcDocs.length; i++) {
+      starts.push(cursor);
+      const pages = await out.copyPages(srcDocs[i], srcDocs[i].getPageIndices());
+      pages.forEach(p => out.addPage(p));
+      cursor += docs[i].pageCount;
+      say(`Merged ${i + 1}/${srcDocs.length}…`);
+    }
+
+    say("Stamping page numbers…");
+    const fonts = await embedFonts(PDFLib, out, config.fontFamily);
+    const stampFont = (config.pageNum && config.pageNum.bold === false) ? fonts.reg : fonts.bold;
+    out.getPages().forEach((p, i) => stampPage(PDFLib, p, i + 1, stampFont, config.pageNum || {}));
+
+    say("Adding bookmarks…");
+    const items = [{ title: config.indexHeading || "Index", pageIndex: 0 }];
+    docs.forEach((d, i) => items.push({ title: d.bookmark || `Document ${i + 1}`, pageIndex: starts[i] }));
+    addOutlines(PDFLib, out, items);
+
+    say("Saving…");
+    const bytes = await out.save();
+    return { bytes, ranges, coverPages, total: cursor };
+  }
+
+  return { buildBinder, buildCover, PAGE_SIZES };
+})();
+
+if (typeof module !== "undefined") module.exports = BinderCore;
+
+</script>
+<script>
+/* ============ DOCX CORE — cover + index as an editable Word file ============ */
+const DocxCore = (() => {
+
+  function buildIndexDocx(docx, config, docs, ranges) {
+    const {
+      Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+      WidthType, AlignmentType, BorderStyle, ShadingType, TabStopType, TabStopPosition,
+    } = docx;
+
+    const fontName = config.fontFamily === "helvetica" ? "Arial" : "Times New Roman";
+    const sz = (config.baseSize || 12) * 2; // half-points
+    const isA4 = config.pageSize === "a4";
+    const pageW = isA4 ? 11906 : 12240, pageH = isA4 ? 16838 : 15840;
+    const usable = pageW - 2880; // 1" margins
+    const fill = (config.headerFill || "#D9D9D9").replace("#", "");
+
+    const R = (text, opts) => new TextRun(Object.assign({ text, font: fontName, size: sz }, opts || {}));
+
+    // parse **bold** into TextRuns
+    const runsOf = (text, base) => {
+      const out = [];
+      String(text).split("**").forEach((part, idx) => {
+        if (part) out.push(R(part, { bold: idx % 2 === 1 ? !(base && base.bold) : !!(base && base.bold), italics: !!(base && base.italics) }));
+      });
+      return out.length ? out : [R("")];
+    };
+
+    const children = [];
+
+    // ---- cause title ----
+    String(config.causeTitle || "").replace(/\r/g, "").split("\n").forEach(raw => {
+      if (raw.trim() === "") { children.push(new Paragraph({ children: [R("")] })); return; }
+      let align = AlignmentType.CENTER;
+      if (/^L:/.test(raw)) { align = AlignmentType.LEFT; raw = raw.slice(2); }
+      if (raw.includes("\t")) {
+        const [l, r] = raw.split("\t");
+        children.push(new Paragraph({
+          alignment: AlignmentType.LEFT,
+          tabStops: [{ type: TabStopType.RIGHT, position: usable }],
+          children: [...runsOf(l), R("\t"), ...runsOf(r)],
+        }));
+        return;
+      }
+      children.push(new Paragraph({ alignment: align, children: runsOf(raw) }));
+    });
+
+    // ---- document title between rules ----
+    if (config.docTitle && config.docTitle.trim()) {
+      const rule = () => new Paragraph({
+        border: { bottom: { style: BorderStyle.SINGLE, size: 6, space: 1, color: "000000" } },
+        children: [R("")],
+      });
+      children.push(rule());
+      children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: runsOf("**" + config.docTitle + "**") }));
+      children.push(rule());
+      children.push(new Paragraph({ children: [R("")] }));
+    }
+
+    // ---- INDEX heading ----
+    if (config.indexHeading && config.indexHeading.trim()) {
+      children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [R(config.indexHeading, { bold: true })] }));
+      children.push(new Paragraph({ children: [R("")] }));
+    }
+
+    // ---- table ----
+    const cols = config.columns;
+    const totW = cols.reduce((a, c) => a + (+c.weight || 1), 0);
+    const colW = cols.map(c => Math.round((+c.weight || 1) / totW * usable));
+
+    const cell = (runs, opts) => new TableCell({
+      width: { size: opts.w, type: WidthType.DXA },
+      shading: opts.fill ? { type: ShadingType.CLEAR, color: "auto", fill: opts.fill } : undefined,
+      margins: { top: 40, bottom: 40, left: 60, right: 60 },
+      children: [new Paragraph({ alignment: opts.align, children: runs })],
+    });
+
+    const headerRow = new TableRow({
+      tableHeader: true,
+      children: cols.map((c, i) => cell([R(c.name, { bold: true })], { w: colW[i], fill, align: AlignmentType.CENTER })),
+    });
+
+    const bodyRows = docs.map((doc, di) => new TableRow({
+      cantSplit: true,
+      children: cols.map((c, i) => {
+        let runs, align = AlignmentType.CENTER;
+        if (c.type === "serial") runs = [R((di + 1) + ".")];
+        else if (c.type === "pages") runs = [R(ranges[di] || "")];
+        else if (c.type === "case") {
+          const key = c.id != null ? c.id : i;
+          const v = (doc.fields || {})[key] || {};
+          runs = [R(v.name || "", { bold: true })];
+          if (v.cite) runs.push(R(", "), R(v.cite, { italics: true }));
+          align = AlignmentType.LEFT;
+        } else {
+          const key = c.id != null ? c.id : i;
+          runs = runsOf((doc.fields || {})[key] || "");
+        }
+        return cell(runs, { w: colW[i], align });
+      }),
+    }));
+
+    const border = { style: BorderStyle.SINGLE, size: 8, color: "000000" };
+    const table = new Table({
+      width: { size: usable, type: WidthType.DXA },
+      columnWidths: colW,
+      borders: { top: border, bottom: border, left: border, right: border, insideHorizontal: border, insideVertical: border },
+      rows: [headerRow, ...bodyRows],
+    });
+    children.push(table);
+
+    return new Document({
+      styles: { default: { document: { run: { font: fontName, size: sz } } } },
+      sections: [{
+        properties: {
+          page: {
+            size: { width: pageW, height: pageH },
+            margin: { top: 1440, bottom: 1440, left: 1440, right: 1440 },
+          },
+        },
+        children,
+      }],
+    });
+  }
+
+  return { buildIndexDocx };
+})();
+
+if (typeof module !== "undefined") module.exports = DocxCore;
+
+</script>
+
+<script>
+"use strict";
+/* ==================== UI STATE ==================== */
+let columns = [];   // {id, name, type, weight}
+let docsArr = [];   // {id, filename, bytes, pageCount, fields:{colId: str|{name,cite}}, bookmark, autoBk}
+let colSeq = 0, docSeq = 0;
+
+const DEFAULT_TEMPLATE = {
+  causeTitle: [
+    "**BEFORE THE NATIONAL COMPANY LAW TRIBUNAL**",
+    "**[BENCH] BENCH, AT [CITY]**",
+    "",
+    "**I.A. NO. [___] OF 20[__]**",
+    "**IN**",
+    "**COMPANY PETITION IB (IBC) NO. [___]/[BENCH]/20[__]**",
+    "",
+    "L:**IN THE MATTER OF:**",
+    "L:[Name of Petitioner]\t…Petitioner",
+    "versus",
+    "L:[Name of Respondent]\t…Respondent",
+    "",
+    "L:**AND IN THE MATTER OF:**",
+    "L:[Name of Applicant]\t…Applicant",
+    "versus",
+    "L:[Name of Respondent]\t…Respondent"
+  ].join("\n"),
+  docTitle: "COMPILATION OF JUDGEMENTS ON BEHALF OF THE APPLICANT",
+  indexHeading: "INDEX",
+  fontFamily: "times", baseSize: 12, pageSize: "letter",
+  pnSize: 20, pnBold: true, pnPos: "tr",
+  headerFill: "#D9D9D9", borders: true,
+  columns: [
+    { name: "Sr No.", type: "serial", weight: 7 },
+    { name: "Judgement Particulars", type: "case", weight: 59 },
+    { name: "Relevant Paras", type: "text", weight: 22 },
+    { name: "Page Nos.", type: "pages", weight: 12 }
+  ]
+};
+
+const $ = id => document.getElementById(id);
+function toggle(h) { h.parentElement.classList.toggle("closed"); }
+function setStatus(msg, cls) { const s = $("status"); s.textContent = msg; s.className = cls || ""; }
+
+function libsReady() {
+  const ok = typeof PDFLib !== "undefined" && typeof docx !== "undefined";
+  $("libwarn").style.display = ok ? "none" : "block";
+  return ok;
+}
+window.addEventListener("load", () => setTimeout(libsReady, 1500));
+
+/* ==================== TEMPLATE ==================== */
+function applyTemplate(t) {
+  $("causeTitle").value = t.causeTitle || "";
+  $("docTitle").value = t.docTitle || "";
+  $("indexHeading").value = t.indexHeading != null ? t.indexHeading : "INDEX";
+  $("fontFamily").value = t.fontFamily || "times";
+  $("baseSize").value = t.baseSize || 12;
+  $("pageSize").value = t.pageSize || "letter";
+  $("headerFill").value = t.headerFill || "#D9D9D9";
+  $("pnSize").value = t.pnSize || 20;
+  $("pnBold").value = t.pnBold === false ? "0" : "1";
+  $("pnPos").value = t.pnPos || "tr";
+  $("borders").value = t.borders === false ? "0" : "1";
+  columns = (t.columns || []).map(c => ({ id: "c" + (++colSeq), name: c.name, type: c.type, weight: c.weight }));
+  renderColumns(); renderDocs();
+}
+
+function currentConfig() {
+  return {
+    causeTitle: $("causeTitle").value,
+    docTitle: $("docTitle").value,
+    indexHeading: $("indexHeading").value,
+    fontFamily: $("fontFamily").value,
+    baseSize: parseFloat($("baseSize").value) || 12,
+    pageSize: $("pageSize").value,
+    pageNum: { size: parseFloat($("pnSize").value) || 20, bold: $("pnBold").value === "1", pos: $("pnPos").value },
+    headerFill: $("headerFill").value || "#D9D9D9",
+    borders: $("borders").value === "1",
+    columns: columns,
+  };
+}
+
+function saveTemplate() {
+  const cfg = currentConfig();
+  const t = Object.assign({}, cfg, {
+    pnSize: cfg.pageNum.size, pnBold: cfg.pageNum.bold, pnPos: cfg.pageNum.pos,
+    columns: columns.map(c => ({ name: c.name, type: c.type, weight: c.weight })),
+  });
+  delete t.pageNum;
+  download(new Blob([JSON.stringify(t, null, 2)], { type: "application/json" }), "binder-template.json");
+  setStatus("Template saved.", "ok");
+}
+$("tplInput").addEventListener("change", e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => { try { applyTemplate(JSON.parse(r.result)); setStatus("Template loaded.", "ok"); } catch (_) { setStatus("Not a valid template file.", "err"); } };
+  r.readAsText(f); e.target.value = "";
+});
+
+/* ==================== COLUMNS UI ==================== */
+const TYPE_LABELS = { serial: "Auto serial (1., 2., …)", case: "Case name + citation", text: "Free text (per document)", pages: "Auto page range" };
+
+function renderColumns() {
+  const tb = $("colTable").querySelector("tbody");
+  tb.innerHTML = "";
+  columns.forEach((c, i) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      `<td><input type="text" value="${esc(c.name)}" onchange="columns[${i}].name=this.value;renderDocs()"></td>
+       <td><select onchange="columns[${i}].type=this.value;renderDocs()">${
+         Object.keys(TYPE_LABELS).map(k => `<option value="${k}"${c.type === k ? " selected" : ""}>${TYPE_LABELS[k]}</option>`).join("")
+       }</select></td>
+       <td><input type="number" min="1" value="${c.weight}" onchange="columns[${i}].weight=parseFloat(this.value)||1"></td>
+       <td style="white-space:nowrap">
+         <button class="mini" title="Move left/up" onclick="moveCol(${i},-1)">↑</button>
+         <button class="mini" onclick="moveCol(${i},1)">↓</button>
+         <button class="mini danger" onclick="columns.splice(${i},1);renderColumns();renderDocs()">✕</button>
+       </td>`;
+    tb.appendChild(tr);
+  });
+}
+function addColumn() { columns.push({ id: "c" + (++colSeq), name: "New Column", type: "text", weight: 15 }); renderColumns(); renderDocs(); }
+function moveCol(i, d) {
+  const j = i + d; if (j < 0 || j >= columns.length) return;
+  [columns[i], columns[j]] = [columns[j], columns[i]];
+  renderColumns(); renderDocs();
+}
+
+/* ==================== DOCUMENTS UI ==================== */
+$("fileInput").addEventListener("change", async e => {
+  if (!libsReady()) return;
+  const files = [...e.target.files];
+  e.target.value = "";
+  for (const f of files) {
+    try {
+      setStatus("Reading " + f.name + "…");
+      const bytes = await f.arrayBuffer();
+      const pd = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
+      const d = { id: "d" + (++docSeq), filename: f.name, bytes, pageCount: pd.getPageCount(), fields: {}, bookmark: "", autoBk: true };
+      guessFields(d);
+      docsArr.push(d);
+    } catch (err) { setStatus("Could not read " + f.name + " — is it a valid PDF?", "err"); return; }
+  }
+  renderDocs(); setStatus(docsArr.length + " document(s) loaded.", "ok");
+});
+
+// Pre-fill the case-name field from the filename (strips "[paras] " prefix and ".pdf")
+function guessFields(d) {
+  const caseCol = columns.find(c => c.type === "case");
+  if (!caseCol) return;
+  let base = d.filename.replace(/\.pdf$/i, "").replace(/^\[[^\]]*\]\s*/, "").trim();
+  const m = base.match(/^(.*?v\..*?),\s*(.+)$/);
+  d.fields[caseCol.id] = m ? { name: m[1].trim(), cite: m[2].trim() } : { name: base, cite: "" };
+}
+
+function autoBookmark(d) {
+  const caseCol = columns.find(c => c.type === "case");
+  const paraCol = columns.find(c => c.type === "text" && /para/i.test(c.name));
+  let t = "";
+  if (caseCol && d.fields[caseCol.id]) {
+    const v = d.fields[caseCol.id];
+    t = (v.name || "") + (v.cite ? ", " + v.cite : "");
+  } else t = d.filename.replace(/\.pdf$/i, "");
+  if (paraCol && d.fields[paraCol.id]) t += " - " + d.fields[paraCol.id];
+  return t;
+}
+
+function renderDocs() {
+  const host = $("docList");
+  host.innerHTML = "";
+  if (!docsArr.length) { host.innerHTML = '<div class="empty">No documents yet.</div>'; return; }
+  docsArr.forEach((d, i) => {
+    if (d.autoBk) d.bookmark = autoBookmark(d);
+    const card = document.createElement("div");
+    card.className = "doccard";
+    let fieldsHtml = "";
+    columns.forEach(c => {
+      if (c.type === "case") {
+        const v = d.fields[c.id] || { name: "", cite: "" };
+        fieldsHtml +=
+          `<div><label>${esc(c.name)} — Case Name (bold)</label>
+             <input type="text" value="${esc(v.name)}" onchange="setCase(${i},'${c.id}','name',this.value)"></div>
+           <div><label>${esc(c.name)} — Citation (italic)</label>
+             <input type="text" value="${esc(v.cite)}" onchange="setCase(${i},'${c.id}','cite',this.value)"></div>`;
+      } else if (c.type === "text") {
+        fieldsHtml +=
+          `<div><label>${esc(c.name)}</label>
+             <input type="text" value="${esc(d.fields[c.id] || "")}" onchange="setField(${i},'${c.id}',this.value)"></div>`;
+      }
+    });
+    card.innerHTML =
+      `<div class="dochead">
+         <span class="fname">${i + 1}. ${esc(d.filename)}</span>
+         <span class="pcount">${d.pageCount} page${d.pageCount === 1 ? "" : "s"}</span>
+         <span class="spacer"></span>
+         <button class="mini" onclick="moveDoc(${i},-1)">↑</button>
+         <button class="mini" onclick="moveDoc(${i},1)">↓</button>
+         <button class="mini danger" onclick="docsArr.splice(${i},1);renderDocs()">Remove</button>
+       </div>
+       <div class="fieldgrid">${fieldsHtml}</div>
+       <div class="bkrow">
+         <label><input type="checkbox" ${d.autoBk ? "checked" : ""} onchange="docsArr[${i}].autoBk=this.checked;renderDocs()"> Auto</label>
+         <label>Bookmark:</label>
+         <input type="text" style="flex:1" value="${esc(d.bookmark)}" ${d.autoBk ? "disabled" : ""}
+                onchange="docsArr[${i}].bookmark=this.value">
+       </div>`;
+    host.appendChild(card);
+  });
+}
+function setCase(i, cid, k, v) { if (!docsArr[i].fields[cid]) docsArr[i].fields[cid] = { name: "", cite: "" }; docsArr[i].fields[cid][k] = v; if (docsArr[i].autoBk) renderDocs(); }
+function setField(i, cid, v) { docsArr[i].fields[cid] = v; if (docsArr[i].autoBk) renderDocs(); }
+function moveDoc(i, d) {
+  const j = i + d; if (j < 0 || j >= docsArr.length) return;
+  [docsArr[i], docsArr[j]] = [docsArr[j], docsArr[i]];
+  renderDocs();
+}
+function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+/* ==================== BUILD ==================== */
+function download(blob, name) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+}
+
+function fileSafe(s) { return (s || "Binder").replace(/[\/\\:*?"<>|]/g, "-").slice(0, 120); }
+
+async function doBuild() {
+  if (!libsReady()) return;
+  if (!docsArr.length) { setStatus("Add at least one PDF first.", "err"); return; }
+  if (!columns.length) { setStatus("Add at least one index column.", "err"); return; }
+  $("btnBuild").disabled = true;
+  try {
+    const res = await BinderCore.buildBinder(PDFLib, currentConfig(), docsArr, m => setStatus(m));
+    const title = $("docTitle").value.trim() || "Binder";
+    download(new Blob([res.bytes], { type: "application/pdf" }), fileSafe(titleCase(title)) + ".pdf");
+    setStatus("Done — " + res.total + " pages (" + res.coverPages + " cover/index + " +
+      (res.total - res.coverPages) + " document pages). Bookmarks visible in Preview via View → Table of Contents.", "ok");
+  } catch (err) {
+    console.error(err);
+    setStatus("Build failed: " + (err && err.message ? err.message : err), "err");
+  } finally { $("btnBuild").disabled = false; }
+}
+
+async function doWord() {
+  if (!libsReady()) return;
+  if (!columns.length) { setStatus("Add at least one index column.", "err"); return; }
+  $("btnWord").disabled = true;
+  try {
+    setStatus("Computing page ranges…");
+    const cfg = currentConfig();
+    // same two-pass layout as the PDF so ranges match
+    let coverPages = 1, ranges = [];
+    if (docsArr.length) {
+      for (let iter = 0; iter < 4; iter++) {
+        let start = coverPages + 1;
+        ranges = docsArr.map(d => { const r = `${start} - ${start + d.pageCount - 1}`; start += d.pageCount; return r; });
+        const cover = await BinderCore.buildCover(PDFLib, cfg, docsArr, ranges);
+        const n = cover.getPageCount();
+        if (n === coverPages) break;
+        coverPages = n;
+      }
+    }
+    setStatus("Building Word file…");
+    const doc = DocxCore.buildIndexDocx(docx, cfg, docsArr, ranges);
+    const blob = await docx.Packer.toBlob(doc);
+    const title = $("docTitle").value.trim() || "Binder";
+    download(blob, fileSafe(titleCase(title)) + " - Cover and Index.docx");
+    setStatus("Word cover + index exported. (If you edit it in Word, the printed layout may repaginate slightly.)", "ok");
+  } catch (err) {
+    console.error(err);
+    setStatus("Word export failed: " + (err && err.message ? err.message : err), "err");
+  } finally { $("btnWord").disabled = false; }
+}
+
+function titleCase(s) {
+  return s === s.toUpperCase() ? s.split(/\s+/).map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(" ") : s;
+}
+
+/* ==================== INIT ==================== */
+applyTemplate(DEFAULT_TEMPLATE);
+</script>
+</body>
+</html>
