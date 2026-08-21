@@ -2,6 +2,8 @@
 
 Court compilation for Indian practice. Cover, index, merged PDFs, pagination and bookmarks — built in the browser, stored on this device.
 
+**Open the app:** [https://kopiticatalan.github.io/binder-builder/](https://kopiticatalan.github.io/binder-builder/)
+
 Windows Phone–era Start tiles. Templates for NCLT, NCLAT, Bombay High Court, SAT and the Supreme Court.
 
 ## What it does
@@ -14,7 +16,7 @@ Windows Phone–era Start tiles. Templates for NCLT, NCLAT, Bombay High Court, S
 - **Limitation desk** — working calculator for common Indian windows (not legal advice)
 - **Backup zip** — take the matter to another machine
 
-PDFs never leave the device except when you tap an optional AI action (clean caption, read cite, holding, draft).
+PDFs never leave the device except when you tap an optional AI action (clean caption, read cite, holding, draft). AI actions need a server and are unavailable on the GitHub Pages build.
 
 ## Run locally
 
@@ -23,15 +25,15 @@ npm install
 npm run dev
 ```
 
-App listens on port 8080. Production build:
+Production build:
 
 ```bash
 npm run build
 npm run preview
 ```
 
-## Notes
+GitHub Pages build:
 
-- Matters live in IndexedDB in this browser. Use **Backup zip** before switching machines.
-- Confirm limitation articles before you diary them.
-- Built with React, TanStack Start, pdf-lib and pdf.js.
+```bash
+npm run build:pages
+```
