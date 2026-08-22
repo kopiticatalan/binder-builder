@@ -15,7 +15,12 @@ export function StylePanel({ matter }: { matter: Matter }) {
   const cfg = matter.config;
 
   return (
-    <div className="grid max-w-4xl gap-4 sm:grid-cols-2">
+    <div className="space-y-6">
+      <p className="max-w-2xl text-sm text-muted leading-relaxed text-pretty">
+        How the PDF looks — not the case. Leave these alone if you just want a plain A4 compilation with page numbers
+        at the top right. Volume cap, gutter and stamps are the ones that usually matter.
+      </p>
+      <div className="grid max-w-4xl gap-4 sm:grid-cols-2">
       <Field label="Font">
         <MetroSelect
           value={cfg.fontFamily}
@@ -164,6 +169,7 @@ export function StylePanel({ matter }: { matter: Matter }) {
           label="Certificate of true copies after the index"
         />
       </div>
+    </div>
     </div>
   );
 }

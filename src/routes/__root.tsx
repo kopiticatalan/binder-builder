@@ -18,7 +18,7 @@ export const Route = createRootRoute({
       { name: "theme-color", content: "#000000" },
       {
         name: "description",
-        content: "Metro court-binder builder: cause title, index, merged PDFs, hearing mode, chronology, limitation desk.",
+        content: "Metro court file: docket, binder, live PDF hearing deck, chronology, table of authorities, limitation desk.",
       },
     ],
     links: [

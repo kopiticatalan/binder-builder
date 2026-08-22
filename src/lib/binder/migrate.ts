@@ -1,5 +1,5 @@
-import { DEFAULT_CONFIG } from "./templates";
-import type { BinderDoc, Matter, PaperKind } from "./types";
+import { DEFAULT_CONFIG, emptyDocket } from "./templates";
+import type { BinderDoc, Matter, NextStep, PaperKind } from "./types";
 import { blankDoc } from "./types";
 
 function guessKind(doc: BinderDoc): PaperKind {
@@ -37,13 +37,55 @@ export function migrateDoc(raw: Partial<BinderDoc> & Pick<BinderDoc, "id" | "fil
   return doc;
 }
 
+function tasksFrom(raw: Matter): NextStep[] {
+  if (raw.tasks?.length) {
+    return raw.tasks.map((t) => ({
+      id: t.id,
+      text: t.text || "",
+      done: !!t.done,
+      due: t.due || "",
+      note: t.note || "",
+    }));
+  }
+  return (raw.deadlines ?? []).map((d) => ({
+    id: d.id,
+    text: d.label || "Date",
+    done: false,
+    due: d.date || "",
+    note: d.note || "",
+  }));
+}
+
 export function migrateMatter(raw: Matter): Matter {
+  const docket = emptyDocket();
+  const status = raw.status === "Disposed" || raw.status === "Pending" ? raw.status : docket.status;
   return {
+    ...docket,
     ...raw,
     config: { ...DEFAULT_CONFIG, ...raw.config },
     columns: raw.columns ?? [],
     docs: (raw.docs ?? []).map((d) => migrateDoc(d)),
     deadlines: raw.deadlines ?? [],
     oralOutline: raw.oralOutline ?? "",
+    petitioner: raw.petitioner ?? "",
+    respondent: raw.respondent ?? "",
+    stage: raw.stage ?? "",
+    status,
+    lastCoram: raw.lastCoram ?? "",
+    lastListing: raw.lastListing ?? "",
+    filedOn: raw.filedOn ?? "",
+    partner: raw.partner ?? "",
+    associates: raw.associates ?? "",
+    tags: raw.tags ?? [],
+    hearingNotes: raw.hearingNotes ?? [],
+    tasks: tasksFrom(raw),
+    orders: raw.orders ?? [],
+    issues: (raw.issues ?? []).map((i) => ({
+      id: i.id,
+      text: i.text || "",
+      note: i.note || "",
+      docIds: [...(i.docIds ?? [])],
+    })),
+    sample: raw.sample ?? false,
   };
 }

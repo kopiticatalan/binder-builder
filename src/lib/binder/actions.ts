@@ -90,6 +90,20 @@ export async function runBackup(matter: Matter) {
         config: matter.config,
         columns: matter.columns,
         docs: matter.docs.map((d) => ({ ...d, searchText: d.searchText ? d.searchText.slice(0, 4000) : "" })),
+        petitioner: matter.petitioner,
+        respondent: matter.respondent,
+        stage: matter.stage,
+        status: matter.status,
+        lastCoram: matter.lastCoram,
+        lastListing: matter.lastListing,
+        filedOn: matter.filedOn,
+        partner: matter.partner,
+        associates: matter.associates,
+        tags: matter.tags,
+        hearingNotes: matter.hearingNotes,
+        tasks: matter.tasks,
+        orders: matter.orders,
+        issues: matter.issues,
         deadlines: matter.deadlines,
         oralOutline: matter.oralOutline,
       },
@@ -197,16 +211,4 @@ export async function runOutline(matter: Matter) {
     pageSize: matter.config.pageSize,
   });
   downloadBlob(blob, fileSafe(matter.name) + " - Oral submissions.docx");
-}
-
-export function printEstimate(pages: number, copies: number, color: boolean) {
-  const rate = color ? 8 : 2;
-  const sheets = pages * Math.max(1, copies);
-  return {
-    sheets,
-    rate,
-    inr: sheets * rate,
-    copies: Math.max(1, copies),
-    color,
-  };
 }

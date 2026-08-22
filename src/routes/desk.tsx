@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { PageShell } from "@/components/metro/shell";
 import { Field, MetroArea, MetroButton, MetroInput, MetroSelect } from "@/components/metro/controls";
@@ -22,6 +22,7 @@ const TABS = [
 type Tab = (typeof TABS)[number]["id"];
 
 function DeskPage() {
+  const navigate = useNavigate();
   const matter = useBinder((s) => s.active());
   const addDeadline = useBinder((s) => s.addDeadline);
   const updateDeadline = useBinder((s) => s.updateDeadline);
@@ -157,9 +158,15 @@ function DeskPage() {
           </Field>
           <ul className="space-y-3">
             {hits.map(({ d, snippet }) => (
-              <li key={d.id} className="bg-chrome p-4">
-                <p className="font-display text-2xl font-light">{paperTitle(d, matter.columns)}</p>
-                <p className="mt-1 text-sm text-muted">{snippet}</p>
+              <li key={d.id}>
+                <button
+                  type="button"
+                  className="w-full bg-chrome p-4 text-left"
+                  onClick={() => void navigate({ href: `/hearing?doc=${encodeURIComponent(d.id)}` })}
+                >
+                  <p className="font-display text-2xl font-light">{paperTitle(d, matter.columns)}</p>
+                  <p className="mt-1 text-sm text-muted">{snippet}</p>
+                </button>
               </li>
             ))}
           </ul>
@@ -187,6 +194,9 @@ function DeskPage() {
             ["1 – 6", "Cover, index, papers, style, preview, output"],
             ["H", "Hearing mode (when not typing)"],
             ["← →", "Turn authorities in hearing mode"],
+            ["↑ ↓ / Space", "Turn pages in the open paper"],
+            ["S", "Star / unstar the open paper"],
+            ["Home", "Jump to the pinpoint page"],
           ].map(([k, v]) => (
             <div key={k}>
               <dt className="label-caps">{k}</dt>

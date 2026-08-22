@@ -80,12 +80,18 @@ function ChronoPage() {
                 r.d.flagged ? "bg-accent" : "bg-subtle",
               )}
             />
-            <p className="label-caps">{r.raw || "undated"}</p>
-            <p className="font-display text-2xl font-light leading-tight">{paperTitle(r.d, matter.columns)}</p>
-            <p className="text-xs text-muted">
-              {KIND_LABELS[r.d.kind]} · {effectivePages(r.d)} pp
-              {r.d.flagged ? " · to be read" : ""}
-            </p>
+            <button
+              type="button"
+              className="w-full text-left"
+              onClick={() => void navigate({ href: `/hearing?doc=${encodeURIComponent(r.d.id)}` })}
+            >
+              <p className="label-caps">{r.raw || "undated"}</p>
+              <p className="font-display text-2xl font-light leading-tight">{paperTitle(r.d, matter.columns)}</p>
+              <p className="text-xs text-muted">
+                {KIND_LABELS[r.d.kind]} · {effectivePages(r.d)} pp
+                {r.d.flagged ? " · to be read" : ""}
+              </p>
+            </button>
           </li>
         ))}
       </ol>

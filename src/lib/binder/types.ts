@@ -20,6 +20,7 @@ export type PaperKind =
   | "order"
   | "affidavit"
   | "other";
+export type MatterStatus = "Pending" | "Disposed" | "";
 
 export interface Column {
   id: string;
@@ -70,6 +71,36 @@ export interface Deadline {
   note: string;
 }
 
+export interface NextStep {
+  id: string;
+  text: string;
+  done: boolean;
+  due: string;
+  note: string;
+}
+
+export interface HearingNote {
+  id: string;
+  text: string;
+  date: string;
+  createdAt: string;
+}
+
+export interface OrderMeta {
+  id: string;
+  date: string;
+  title: string;
+  coram: string;
+  excerpt: string;
+}
+
+export interface Issue {
+  id: string;
+  text: string;
+  note: string;
+  docIds: string[];
+}
+
 export interface BinderConfig {
   causeTitle: string;
   docTitle: string;
@@ -108,6 +139,21 @@ export interface Matter {
   docs: BinderDoc[];
   deadlines: Deadline[];
   oralOutline: string;
+  petitioner: string;
+  respondent: string;
+  stage: string;
+  status: MatterStatus;
+  lastCoram: string;
+  lastListing: string;
+  filedOn: string;
+  partner: string;
+  associates: string;
+  tags: string[];
+  hearingNotes: HearingNote[];
+  tasks: NextStep[];
+  orders: OrderMeta[];
+  issues: Issue[];
+  sample?: boolean;
 }
 
 export interface CourtTemplate {

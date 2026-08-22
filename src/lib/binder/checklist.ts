@@ -117,8 +117,9 @@ export function filingChecklist(matter: Matter): CheckItem[] {
     detail: config.hearingDate.trim() || "Optional, but clerks look for it.",
   });
 
-  const soon = (matter.deadlines ?? []).filter((d) => {
-    const n = daysUntil(d.date);
+  const soon = (matter.tasks ?? []).filter((t) => {
+    if (t.done) return false;
+    const n = daysUntil(t.due);
     return n != null && n <= 3;
   });
   items.push({
@@ -127,10 +128,10 @@ export function filingChecklist(matter: Matter): CheckItem[] {
     warn: soon.length > 0,
     label: "Limitation / listings",
     detail: soon.length
-      ? `${soon.length} deadline${soon.length === 1 ? "" : "s"} within 3 days.`
-      : (matter.deadlines ?? []).length
-        ? `${matter.deadlines.length} deadline${matter.deadlines.length === 1 ? "" : "s"} on the desk.`
-        : "Add limitation and listing dates on Desk.",
+      ? `${soon.length} open task${soon.length === 1 ? "" : "s"} due within 3 days.`
+      : (matter.tasks ?? []).length
+        ? `${matter.tasks.filter((t) => !t.done).length} open task${matter.tasks.filter((t) => !t.done).length === 1 ? "" : "s"}.`
+        : "Add listing dates and next steps on the docket.",
   });
 
   items.push({

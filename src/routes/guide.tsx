@@ -18,11 +18,15 @@ const BLOCKS = [
   },
   {
     title: "Hearing mode",
-    body: "A full-screen deck of starred authorities. Swipe or use the arrows. Pinpoints, holding, and a private speaking note sit on one screen so you are not scrolling a 400-page PDF at the lectern.",
+    body: "A full-screen deck of starred authorities with the actual PDF page on screen. Pinpoints jump to the holding pages. Arrows turn papers; up/down or space turns pages. Copy the cite, keep a private speaking note, and see which issue the paper goes to. On a phone, More → Notes / holding.",
+  },
+  {
+    title: "Issues to argue",
+    body: "On the docket, frame the propositions you will open on. Tag the papers for each issue. They appear as cyan tiles in hearing so you are not hunting the compilation while the bench waits.",
   },
   {
     title: "Chronology and TOA",
-    body: "Chronology sorts on the date column. Table of authorities groups Supreme Court, High Courts, NCLT/NCLAT and the rest. Both export as Word.",
+    body: "Chronology sorts on the date column. Table of authorities groups Supreme Court, High Courts, NCLT/NCLAT and the rest. Both export as Word. Tap a row to open that paper in hearing.",
   },
   {
     title: "Limitation desk",

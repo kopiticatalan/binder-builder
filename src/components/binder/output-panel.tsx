@@ -1,9 +1,8 @@
-import { useRef, useState } from "react";
-import { Field, MetroButton, MetroInput } from "@/components/metro/controls";
+import { useRef, useState, type ReactNode } from "react";
+import { Field, MetroButton } from "@/components/metro/controls";
 import { checklistScore, filingChecklist } from "@/lib/binder/checklist";
 import {
   exportTemplate,
-  printEstimate,
   runBackup,
   runBuild,
   runChronology,
@@ -18,21 +17,36 @@ import { effectivePages, type Matter } from "@/lib/binder/types";
 import { CoverPreview } from "./cover-preview";
 import { cn } from "@/lib/utils";
 
+function Action({
+  title,
+  body,
+  children,
+}: {
+  title: string;
+  body: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="border border-line px-4 py-5">
+      <p className="font-display text-2xl font-light leading-none">{title}</p>
+      <p className="mt-2 mb-4 max-w-xl text-sm text-muted leading-relaxed">{body}</p>
+      <div className="flex flex-wrap gap-2">{children}</div>
+    </div>
+  );
+}
+
 export function OutputPanel({ matter }: { matter: Matter }) {
   const setStatus = useBinder((s) => s.setStatus);
   const statusKind = useBinder((s) => s.statusKind);
   const importMatter = useBinder((s) => s.importMatter);
   const patchActive = useBinder((s) => s.patchActive);
   const [builtUrl, setBuiltUrl] = useState<string | null>(null);
-  const [copies, setCopies] = useState(3);
-  const [color, setColor] = useState(false);
   const tplRef = useRef<HTMLInputElement>(null);
   const bakRef = useRef<HTMLInputElement>(null);
   const checks = filingChecklist(matter);
   const score = checklistScore(checks);
   const pages = matter.docs.reduce((a, d) => a + effectivePages(d), 0);
   const busy = statusKind === "busy";
-  const est = printEstimate(pages + 4, copies, color);
   const starred = matter.docs.filter((d) => d.flagged).length;
 
   async function build(starredOnly = false) {
@@ -58,14 +72,29 @@ export function OutputPanel({ matter }: { matter: Matter }) {
 
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.85fr)]">
-      <div className="space-y-6">
-        <div className="flex flex-wrap gap-2">
+      <div className="space-y-4">
+        <p className="max-w-2xl text-sm text-muted leading-relaxed">
+          The binder is a PDF: cover, index, then your papers in order, stamped and bookmarked. Everything else on this
+          page is optional — Word for the registry, spine labels for the physical file, a thin “to be read” volume for
+          the bench.
+        </p>
+
+        <Action
+          title="PDF binder"
+          body="Needs at least one PDF on Papers. Cover and index are paginated first so the page ranges are real. If you set a volume cap on Look, you get a zip of Volume I of N."
+        >
           <MetroButton variant="accent" disabled={busy} onClick={() => void build()}>
             Build PDF binder
           </MetroButton>
           <MetroButton disabled={busy || starred === 0} onClick={() => void build(true)}>
             Starred only ({starred})
           </MetroButton>
+        </Action>
+
+        <Action
+          title="Cover + index in Word"
+          body="Same caption and table, as a .docx — useful when the registry wants Word, or you need to tweak a line before filing."
+        >
           <MetroButton
             disabled={busy}
             onClick={() => {
@@ -77,6 +106,12 @@ export function OutputPanel({ matter }: { matter: Matter }) {
           >
             Cover + index (Word)
           </MetroButton>
+        </Action>
+
+        <Action
+          title="Hearing extras"
+          body="Spine labels print three cut-outs on one page. Table of authorities groups Supreme Court, High Courts and the rest. Chronology sorts on the date column. Oral submissions is your speaking note."
+        >
           <MetroButton
             disabled={busy}
             onClick={() => {
@@ -121,6 +156,12 @@ export function OutputPanel({ matter }: { matter: Matter }) {
           >
             Oral submissions
           </MetroButton>
+        </Action>
+
+        <Action
+          title="Take this matter elsewhere"
+          body="Backup zip is the whole docket plus PDFs. Restore it from Matters. A template is only caption + index columns — not the papers."
+        >
           <MetroButton
             disabled={busy}
             onClick={() => {
@@ -155,7 +196,15 @@ export function OutputPanel({ matter }: { matter: Matter }) {
                 const raw = JSON.parse(await f.text());
                 const { config, columns } = templateFromJson(raw);
                 patchActive((m) => {
-                  m.config = { ...m.config, ...config };
+                  m.config = {
+                    ...m.config,
+                    ...config,
+                    caseNumber: m.config.caseNumber,
+                    hearingDate: m.config.hearingDate,
+                    appearingFor: m.config.appearingFor,
+                    filedBy: m.config.filedBy,
+                    court: m.config.court || config.court,
+                  };
                   m.columns = columns;
                 });
                 setStatus("Template loaded onto this matter.", "ok");
@@ -182,7 +231,8 @@ export function OutputPanel({ matter }: { matter: Matter }) {
               }
             }}
           />
-        </div>
+        </Action>
+
         {builtUrl ? (
           <Field label="Last build">
             <iframe title="Built binder" src={builtUrl} className="h-[480px] w-full bg-paper" />
@@ -190,32 +240,7 @@ export function OutputPanel({ matter }: { matter: Matter }) {
         ) : null}
 
         <div>
-          <p className="label-caps mb-3">Print desk</p>
-          <p className="mb-3 text-sm text-muted">
-            Rough chambers cost for A4 copies in India. Override copies if the bench wants a set each.
-          </p>
-          <div className="mb-3 grid max-w-md grid-cols-2 gap-3">
-            <Field label="Copies">
-              <MetroInput
-                type="number"
-                min={1}
-                max={40}
-                value={copies}
-                onChange={(e) => setCopies(parseInt(e.target.value, 10) || 1)}
-              />
-            </Field>
-            <Field label="Ink">
-              <MetroButton onClick={() => setColor((v) => !v)}>{color ? "Colour" : "Black & white"}</MetroButton>
-            </Field>
-          </div>
-          <p className="font-display text-3xl font-light tabular-nums">
-            {est.sheets} sheets · ₹{est.inr}
-          </p>
-          <p className="text-xs text-muted">at ₹{est.rate}/page · cover counted as 4 pages</p>
-        </div>
-
-        <div>
-          <p className="label-caps mb-3">Filing checklist</p>
+          <p className="label-caps mb-3">Before you file</p>
           <p className="mb-3 text-sm text-muted">
             {pages} paper pages · {matter.docs.length} files
             {score.blocking ? ` · ${score.blocking} blocking` : ""}

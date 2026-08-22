@@ -5,13 +5,42 @@ import { autoBookmark, applyExhibitScheme, guessFields, guessKind } from "./gues
 import { fingerprintPdf } from "./hash";
 import { migrateMatter } from "./migrate";
 import { extractSearchText } from "./pdf-text";
-import { blankMatter, columnsFrom, configFrom, createMatter, matterNameFrom, TEMPLATES } from "./templates";
-import type { AccentId, BinderConfig, BinderDoc, Column, Deadline, FieldValue, Matter, PaperKind } from "./types";
+import { stampCaption, blankMatter, columnsFrom, configFrom, createMatter, matterNameFrom, TEMPLATES } from "./templates";
+import type {
+  AccentId,
+  BinderConfig,
+  BinderDoc,
+  Column,
+  Deadline,
+  FieldValue,
+  HearingNote,
+  Issue,
+  Matter,
+  NextStep,
+  OrderMeta,
+  PaperKind,
+} from "./types";
 import { blankDoc } from "./types";
 import { PDFDocument } from "pdf-lib";
 
 export type StatusKind = "idle" | "ok" | "err" | "busy";
 export type PaperSort = "order" | "date" | "name" | "flagged" | "kind";
+
+type DocketPatch = Partial<
+  Pick<
+    Matter,
+    | "petitioner"
+    | "respondent"
+    | "stage"
+    | "status"
+    | "lastCoram"
+    | "lastListing"
+    | "filedOn"
+    | "partner"
+    | "associates"
+    | "tags"
+  >
+>;
 
 interface BinderState {
   ready: boolean;
@@ -37,6 +66,20 @@ interface BinderState {
   patchConfig: (partial: Partial<BinderConfig>) => void;
   setCauseTitle: (v: string) => void;
   setOralOutline: (v: string) => void;
+  patchDocket: (partial: DocketPatch) => void;
+  stampCaptionFromDocket: () => void;
+  addTask: (t?: Partial<NextStep>) => void;
+  updateTask: (id: string, patch: Partial<NextStep>) => void;
+  toggleTask: (id: string, done?: boolean) => void;
+  removeTask: (id: string) => void;
+  addNote: (text: string) => void;
+  removeNote: (id: string) => void;
+  addOrder: (o?: Partial<OrderMeta>) => void;
+  updateOrder: (id: string, patch: Partial<OrderMeta>) => void;
+  removeOrder: (id: string) => void;
+  addIssue: (t?: Partial<Issue>) => void;
+  updateIssue: (id: string, patch: Partial<Issue>) => void;
+  removeIssue: (id: string) => void;
   addDeadline: (d?: Partial<Deadline>) => void;
   updateDeadline: (id: string, patch: Partial<Deadline>) => void;
   removeDeadline: (id: string) => void;
@@ -56,6 +99,8 @@ interface BinderState {
   renumberExhibits: () => void;
   importMatter: (matter: Matter, buffers: Record<string, ArrayBuffer>) => void;
   loadSamples: () => Promise<void>;
+  loadPractice: () => void;
+  clearSample: () => void;
 }
 
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
@@ -72,7 +117,7 @@ function schedulePersist(get: () => BinderState) {
 
 function touch(m: Matter): Matter {
   m.updatedAt = Date.now();
-  m.name = matterNameFrom(m.config) || m.name;
+  m.name = matterNameFrom(m) || m.name;
   return m;
 }
 
@@ -84,6 +129,11 @@ function cloneMatter(m: Matter): Matter {
     docs: m.docs.map((d) => ({ ...d, fields: { ...d.fields } })),
     deadlines: (m.deadlines ?? []).map((d) => ({ ...d })),
     oralOutline: m.oralOutline ?? "",
+    tags: [...(m.tags ?? [])],
+    hearingNotes: (m.hearingNotes ?? []).map((n) => ({ ...n })),
+    tasks: (m.tasks ?? []).map((t) => ({ ...t })),
+    orders: (m.orders ?? []).map((o) => ({ ...o })),
+    issues: (m.issues ?? []).map((i) => ({ ...i, docIds: [...i.docIds] })),
   };
 }
 
@@ -110,9 +160,7 @@ export const useBinder = create<BinderState>((set, get) => ({
       });
       return;
     }
-    const first = createMatter(TEMPLATES[0]);
-    set({ ready: true, matters: [first], activeId: first.id, accent: "cyan" });
-    persistNow(get);
+    set({ ready: true, matters: [], activeId: null, accent: saved?.accent || "cyan" });
   },
 
   setAccent: (accent) => {
@@ -164,8 +212,8 @@ export const useBinder = create<BinderState>((set, get) => ({
   },
 
   newMatter: (templateId) => {
-    const t = TEMPLATES.find((x) => x.id === templateId);
-    const m = createMatter(t);
+    const t = templateId ? TEMPLATES.find((x) => x.id === templateId) : undefined;
+    const m = t ? createMatter(t) : blankMatter();
     set((s) => ({ matters: [m, ...s.matters], activeId: m.id, past: [] }));
     persistNow(get);
     return m.id;
@@ -188,6 +236,7 @@ export const useBinder = create<BinderState>((set, get) => ({
       createdAt: Date.now(),
       updatedAt: Date.now(),
       docs: [],
+      sample: false,
     };
     set((s) => ({ matters: [m, ...s.matters], activeId: m.id }));
     persistNow(get);
@@ -200,12 +249,7 @@ export const useBinder = create<BinderState>((set, get) => ({
     target?.docs.forEach((d) => void deleteBytes(d.id));
     const next = matters.filter((m) => m.id !== id);
     const nextActive = activeId === id ? (next[0]?.id ?? null) : activeId;
-    if (!next.length) {
-      const fresh = createMatter(TEMPLATES[0]);
-      set({ matters: [fresh], activeId: fresh.id, past: [] });
-    } else {
-      set({ matters: next, activeId: nextActive, past: [] });
-    }
+    set({ matters: next, activeId: nextActive, past: [] });
     persistNow(get);
   },
 
@@ -225,8 +269,16 @@ export const useBinder = create<BinderState>((set, get) => ({
     if (!t) return;
     get().patchActive((m) => {
       m.templateId = t.id;
-      m.config = configFrom(t);
+      const keep = {
+        caseNumber: m.config.caseNumber,
+        hearingDate: m.config.hearingDate,
+        appearingFor: m.config.appearingFor,
+        filedBy: m.config.filedBy,
+        court: m.config.court || t.config.court || "",
+      };
+      m.config = { ...configFrom(t), ...keep };
       m.columns = columnsFrom(t);
+      if (m.petitioner.trim() && m.respondent.trim()) stampCaption(m);
       if (!keepDocs) {
         m.docs.forEach((d) => void deleteBytes(d.id));
         m.docs = [];
@@ -259,25 +311,136 @@ export const useBinder = create<BinderState>((set, get) => ({
     }, { undo: false });
   },
 
-  addDeadline: (d) => {
+  patchDocket: (partial) => {
     get().patchActive((m) => {
-      m.deadlines = [
-        ...(m.deadlines ?? []),
-        { id: newId(), label: d?.label || "Next listing", date: d?.date || "", note: d?.note || "" },
+      Object.assign(m, partial);
+    }, { undo: false });
+  },
+
+  stampCaptionFromDocket: () => {
+    get().patchActive((m) => {
+      stampCaption(m);
+    });
+  },
+
+  addTask: (t) => {
+    get().patchActive((m) => {
+      m.tasks = [
+        ...(m.tasks ?? []),
+        {
+          id: newId(),
+          text: t?.text || "Next step",
+          done: false,
+          due: t?.due || "",
+          note: t?.note || "",
+        },
       ];
     });
   },
 
-  updateDeadline: (id, patch) => {
+  updateTask: (id, patch) => {
     get().patchActive((m) => {
-      m.deadlines = (m.deadlines ?? []).map((x) => (x.id === id ? { ...x, ...patch } : x));
+      m.tasks = (m.tasks ?? []).map((x) => (x.id === id ? { ...x, ...patch } : x));
+    }, { undo: false });
+  },
+
+  toggleTask: (id, done) => {
+    get().patchActive((m) => {
+      m.tasks = (m.tasks ?? []).map((x) =>
+        x.id === id ? { ...x, done: done ?? !x.done } : x,
+      );
+    }, { undo: false });
+  },
+
+  removeTask: (id) => {
+    get().patchActive((m) => {
+      m.tasks = (m.tasks ?? []).filter((x) => x.id !== id);
     });
   },
 
-  removeDeadline: (id) => {
+  addNote: (text) => {
+    const note: HearingNote = {
+      id: newId(),
+      text,
+      date: new Date().toISOString().slice(0, 10),
+      createdAt: new Date().toISOString(),
+    };
     get().patchActive((m) => {
-      m.deadlines = (m.deadlines ?? []).filter((x) => x.id !== id);
+      m.hearingNotes = [note, ...(m.hearingNotes ?? [])];
     });
+  },
+
+  removeNote: (id) => {
+    get().patchActive((m) => {
+      m.hearingNotes = (m.hearingNotes ?? []).filter((n) => n.id !== id);
+    });
+  },
+
+  addOrder: (o) => {
+    get().patchActive((m) => {
+      m.orders = [
+        {
+          id: newId(),
+          date: o?.date || "",
+          title: o?.title || "Order",
+          coram: o?.coram || "",
+          excerpt: o?.excerpt || "",
+        },
+        ...(m.orders ?? []),
+      ];
+    });
+  },
+
+  updateOrder: (id, patch) => {
+    get().patchActive((m) => {
+      m.orders = (m.orders ?? []).map((x) => (x.id === id ? { ...x, ...patch } : x));
+    }, { undo: false });
+  },
+
+  removeOrder: (id) => {
+    get().patchActive((m) => {
+      m.orders = (m.orders ?? []).filter((x) => x.id !== id);
+    });
+  },
+
+  addIssue: (t) => {
+    get().patchActive((m) => {
+      m.issues = [
+        ...(m.issues ?? []),
+        {
+          id: newId(),
+          text: t?.text || "Issue",
+          note: t?.note || "",
+          docIds: t?.docIds ? [...t.docIds] : [],
+        },
+      ];
+    });
+  },
+
+  updateIssue: (id, patch) => {
+    get().patchActive((m) => {
+      m.issues = (m.issues ?? []).map((x) =>
+        x.id === id ? { ...x, ...patch, docIds: patch.docIds ? [...patch.docIds] : x.docIds } : x,
+      );
+    }, { undo: false });
+  },
+
+  removeIssue: (id) => {
+    get().patchActive((m) => {
+      m.issues = (m.issues ?? []).filter((x) => x.id !== id);
+    });
+  },
+
+  addDeadline: (d) => {
+    get().addTask({ text: d?.label || "Next listing", due: d?.date || "", note: d?.note || "" });
+  },
+
+  updateDeadline: (id, patch) => {
+    get().updateTask(id, { text: patch.label, due: patch.date, note: patch.note });
+  },
+
+  removeDeadline: (id) => {
+    get().removeTask(id);
   },
 
   setColumns: (cols) => {
@@ -365,21 +528,21 @@ export const useBinder = create<BinderState>((set, get) => ({
       const dupNote = skipped.length ? ` Skipped ${skipped.length} duplicate${skipped.length === 1 ? "" : "s"}.` : "";
       set({
         status: `${get().active()?.docs.length ?? 0} document(s) loaded.${dupNote}`,
-        statusKind: skipped.length ? "ok" : "ok",
+        statusKind: "ok",
       });
 
       void (async () => {
-        for (const { doc, stored } of added) {
+        await mapPool(added, 2, async ({ doc, stored }) => {
           try {
-            const text = await extractSearchText(stored, Math.min(6, doc.pageCount));
-            if (!text) continue;
+            const text = await extractSearchText(stored.slice(0), Math.min(12, doc.pageCount), 20000);
+            if (!text) return;
             get().patchActive((m) => {
               m.docs = m.docs.map((d) => (d.id === doc.id ? { ...d, searchText: text } : d));
             }, { undo: false });
           } catch {
             /* indexing is best-effort */
           }
-        }
+        });
       })();
     } catch (err) {
       set({
@@ -391,8 +554,13 @@ export const useBinder = create<BinderState>((set, get) => ({
 
   removeDoc: (id) => {
     void deleteBytes(id);
+    void import("./pdf-view").then((m) => m.evictPdf(id)).catch(() => {});
     get().patchActive((m) => {
       m.docs = m.docs.filter((d) => d.id !== id);
+      m.issues = (m.issues ?? []).map((iss) => ({
+        ...iss,
+        docIds: iss.docIds.filter((x) => x !== id),
+      }));
     });
   },
 
@@ -475,6 +643,7 @@ export const useBinder = create<BinderState>((set, get) => ({
       id: newId(),
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      sample: false,
     });
     const pairs = imported.docs.map((d) => ({ oldId: d.id, doc: { ...d, id: newId() } }));
     imported.docs = pairs.map((p) => p.doc);
@@ -490,7 +659,25 @@ export const useBinder = create<BinderState>((set, get) => ({
   loadSamples: async () => {
     set({ status: "Building sample authorities…", statusKind: "busy" });
     const { makeSampleDocs } = await import("./samples");
-    const matter = get().active();
+    let matter = get().active();
+    if (!matter) {
+      get().loadBlank();
+      matter = get().active();
+    }
+    if (!matter) return;
+    if (!matter.columns.some((c) => c.type === "case")) {
+      get().patchActive((m) => {
+        if (m.columns.some((c) => c.type === "case")) return;
+        m.columns.splice(1, 0, { id: newId(), name: "Judgement Particulars", type: "case", weight: 50 });
+        if (!m.columns.some((c) => c.type === "text" && /para/i.test(c.name))) {
+          m.columns.splice(2, 0, { id: newId(), name: "Relevant Paras", type: "text", weight: 18 });
+        }
+        if (!m.columns.some((c) => c.type === "date")) {
+          m.columns.push({ id: newId(), name: "Date", type: "date", weight: 14 });
+        }
+      });
+      matter = get().active();
+    }
     if (!matter) return;
     const { docs, buffers } = await makeSampleDocs(matter.columns);
     for (let i = 0; i < docs.length; i++) {
@@ -501,10 +688,58 @@ export const useBinder = create<BinderState>((set, get) => ({
       m.docs.forEach((d) => {
         if (d.autoBk) d.bookmark = autoBookmark(d, m.columns);
       });
-      if (!m.config.hearingDate) m.config.hearingDate = new Date().toLocaleDateString("en-IN");
+      if (!m.config.hearingDate) m.config.hearingDate = new Date().toISOString().slice(0, 10);
       if (!m.config.appearingFor) m.config.appearingFor = "the Applicant";
+      if (!(m.issues ?? []).length) {
+        m.issues = [
+          {
+            id: newId(),
+            text: "Whether the Code occupies the field vis-à-vis inconsistent state law",
+            note: "Innoventive · s. 238",
+            docIds: docs.filter((d) => /Innoventive/i.test(d.filename)).map((d) => d.id),
+          },
+          {
+            id: newId(),
+            text: "Object of the Code at the admission stage",
+            note: "Swiss Ribbons · not a recovery statute",
+            docIds: docs.filter((d) => /Swiss/i.test(d.filename)).map((d) => d.id),
+          },
+          {
+            id: newId(),
+            text: "Whether Section 7 leaves residual discretion after debt and default",
+            note: "Vidarbha — cite narrowly",
+            docIds: docs.filter((d) => /Vidarbha/i.test(d.filename)).map((d) => d.id),
+          },
+        ];
+      }
     });
-    set({ status: "Sample compilation loaded. Build it from Output.", statusKind: "ok" });
+    set({ status: "Sample compilation loaded. Build it from the last tab.", statusKind: "ok" });
+  },
+
+  loadPractice: () => {
+    if (get().matters.some((m) => m.sample)) {
+      set({ status: "Sample practice is already on this device.", statusKind: "idle" });
+      return;
+    }
+    void import("./practice").then(({ makePracticeMatters }) => {
+      const samples = makePracticeMatters();
+      set((s) => ({
+        matters: [...samples, ...s.matters],
+        activeId: samples[0]?.id ?? s.activeId,
+        past: [],
+        status: "Four Bombay High Court matters loaded. Nothing is uploaded.",
+        statusKind: "ok",
+      }));
+      persistNow(get);
+    });
+  },
+
+  clearSample: () => {
+    const { matters, activeId } = get();
+    const next = matters.filter((m) => !m.sample);
+    const nextActive = next.some((m) => m.id === activeId) ? activeId : (next[0]?.id ?? null);
+    set({ matters: next, activeId: nextActive, past: [], status: "Sample matters removed.", statusKind: "ok" });
+    persistNow(get);
   },
 }));
 

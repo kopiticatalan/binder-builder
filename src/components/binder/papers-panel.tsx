@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, GripVertical, Star, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, GripVertical, Gavel, Star, Trash2 } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
 import {
   DndContext,
   PointerSensor,
@@ -28,6 +29,7 @@ export function PapersPanel({ matter }: { matter: Matter }) {
   const sortDocs = useBinder((s) => s.sortDocs);
   const renumberExhibits = useBinder((s) => s.renumberExhibits);
   const setStatus = useBinder((s) => s.setStatus);
+  const loadSamples = useBinder((s) => s.loadSamples);
   const inputRef = useRef<HTMLInputElement>(null);
   const [q, setQ] = useState("");
   const [over, setOver] = useState(false);
@@ -146,6 +148,10 @@ export function PapersPanel({ matter }: { matter: Matter }) {
         <span className="font-display text-3xl font-light">Drop PDFs</span>
         <span className="text-sm text-fg/80">or tap to add. Order here is the order in the binder.</span>
       </button>
+
+      {matter.docs.length === 0 ? (
+        <MetroButton onClick={() => void loadSamples()}>Load three sample authorities</MetroButton>
+      ) : null}
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-[180px] flex-1">
@@ -352,6 +358,7 @@ function PaperCard({
         </div>
         <MetroButton onClick={() => void onCite(d.id, "citation")}>Read cite</MetroButton>
         <MetroButton onClick={() => void onCite(d.id, "holding")}>Holding</MetroButton>
+        <OpenHearing id={d.id} />
       </div>
       {d.holding ? <p className="mt-3 text-sm leading-relaxed text-muted">{d.holding}</p> : null}
       <div className="mt-3">
@@ -360,5 +367,15 @@ function PaperCard({
         </Field>
       </div>
     </li>
+  );
+}
+
+function OpenHearing({ id }: { id: string }) {
+  const navigate = useNavigate();
+  return (
+    <MetroButton onClick={() => void navigate({ href: `/hearing?doc=${encodeURIComponent(id)}` })}>
+      <Gavel className="size-4" />
+      Hearing
+    </MetroButton>
   );
 }

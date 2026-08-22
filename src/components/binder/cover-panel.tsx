@@ -7,7 +7,9 @@ import { CoverPreview } from "./cover-preview";
 
 export function CoverPanel({ matter }: { matter: Matter }) {
   const patchConfig = useBinder((s) => s.patchConfig);
+  const patchDocket = useBinder((s) => s.patchDocket);
   const setCauseTitle = useBinder((s) => s.setCauseTitle);
+  const stampCaptionFromDocket = useBinder((s) => s.stampCaptionFromDocket);
   const setStatus = useBinder((s) => s.setStatus);
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const cfg = matter.config;
@@ -55,9 +57,28 @@ export function CoverPanel({ matter }: { matter: Matter }) {
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.9fr)]">
       <div className="space-y-5">
+        <p className="max-w-2xl text-sm text-muted leading-relaxed text-pretty">
+          This is the cover that prints. Court, case number and parties also live on the docket — change them in either
+          place. A caption template (Captions on start) only fills wording; it does not lock you to NCLT or any other
+          forum.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Petitioner / plaintiff">
+            <MetroInput
+              value={matter.petitioner}
+              onChange={(e) => patchDocket({ petitioner: e.target.value })}
+            />
+          </Field>
+          <Field label="Respondent / defendant">
+            <MetroInput
+              value={matter.respondent}
+              onChange={(e) => patchDocket({ respondent: e.target.value })}
+            />
+          </Field>
+        </div>
         <Field
           label="Cause title"
-          hint="Each line is centred. Start with L: to left-align. Tab pushes a designation to the right margin. **bold**."
+          hint="Each line is centred. Start with L: to left-align. Tab pushes a designation to the right margin. Wrap a phrase in **double asterisks** to bold it."
         >
           <textarea
             ref={areaRef}
@@ -68,12 +89,18 @@ export function CoverPanel({ matter }: { matter: Matter }) {
           />
         </Field>
         <div className="flex flex-wrap gap-2">
+          <MetroButton variant="accent" onClick={() => stampCaptionFromDocket()}>
+            Write from parties
+          </MetroButton>
           <MetroButton onClick={() => prefixLine("L:")}>L: line</MetroButton>
           <MetroButton onClick={insertTab}>Insert tab</MetroButton>
           <MetroButton onClick={wrapSel}>Bold</MetroButton>
           <MetroButton onClick={formatCaption}>Clean caption</MetroButton>
         </div>
-        <Field label="Document title">
+        <Field
+          label="Document title"
+          hint="The heading under the cause title — compilation, exhibit binder, written submissions…"
+        >
           <MetroInput value={cfg.docTitle} onChange={(e) => patchConfig({ docTitle: e.target.value })} />
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -87,7 +114,11 @@ export function CoverPanel({ matter }: { matter: Matter }) {
             <MetroInput value={cfg.caseNumber} onChange={(e) => patchConfig({ caseNumber: e.target.value })} />
           </Field>
           <Field label="Hearing date">
-            <MetroInput value={cfg.hearingDate} onChange={(e) => patchConfig({ hearingDate: e.target.value })} />
+            <MetroInput
+              type="date"
+              value={cfg.hearingDate}
+              onChange={(e) => patchConfig({ hearingDate: e.target.value })}
+            />
           </Field>
         </div>
         <Field label="Appearing for">
@@ -97,7 +128,7 @@ export function CoverPanel({ matter }: { matter: Matter }) {
             placeholder="the Applicant / the Petitioner"
           />
         </Field>
-        <Field label="Filed by" hint="Counsel block printed after the index.">
+        <Field label="Filed by" hint="Counsel block printed after the index. Optional.">
           <MetroArea
             rows={4}
             value={cfg.filedBy}

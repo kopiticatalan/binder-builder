@@ -11,10 +11,6 @@ export function IndexPanel({ matter }: { matter: Matter }) {
 
   return (
     <div className="space-y-4">
-      <p className="max-w-2xl text-sm text-muted leading-relaxed">
-        Auto serial numbers the rows. Case name + citation prints bold then italic. Auto page range fills from the
-        merged pagination. Widths are relative (e.g. 7 / 59 / 22 / 12).
-      </p>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] border-collapse text-sm">
           <thead>

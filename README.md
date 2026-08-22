@@ -1,20 +1,24 @@
 # Binder Builder
 
-Court compilation for Indian practice. Cover, index, merged PDFs, pagination and bookmarks — built in the browser, stored on this device.
+Chambers desk for Indian practice. One matter is the case file — parties, listing, tasks, notes. The binder is optional papers for a hearing.
 
 **Open the app:** [https://kopiticatalan.github.io/binder-builder/](https://kopiticatalan.github.io/binder-builder/)
 
-Windows Phone–era Start tiles. Templates for NCLT, NCLAT, Bombay High Court, SAT and the Supreme Court.
+Windows Phone–era Start tiles. Nothing leaves this device.
 
 ## What it does
 
-- **Cover and index** — cause title, parties, page ranges, optional hyperlinks
-- **Papers** — drop PDFs, crop ranges, star authorities, kind tags
-- **Build** — merge, stamp, bookmarks, optional volume split and divider sheets
-- **Hearing mode** — full-screen deck of starred authorities with pinpoints and speaking notes
+- **Docket** — parties, court, case number, next listing, stage, status
+- **Board** — listings you diary’d, in date order; calendar (.ics) export
+- **Tasks** — next steps across matters
+- **Hearing notes and orders** — on the docket
+- **Binder** — cover, index, drop PDFs, merge, stamp, bookmarks, volume split
+- **Hearing mode** — live PDF pages of starred authorities, pinpoints, speaking notes
 - **Chronology and table of authorities** — export as Word
 - **Limitation desk** — working calculator for common Indian windows (not legal advice)
 - **Backup zip** — take the matter to another machine
+
+The board is your diary, not a scraped cause list. Court-website lookup is not on this public page.
 
 PDFs never leave the device except when you tap an optional AI action (clean caption, read cite, holding, draft). AI actions need a server and are unavailable on the GitHub Pages build.
 
@@ -32,7 +36,7 @@ npm run build
 npm run preview
 ```
 
-GitHub Pages build:
+GitHub Pages build (this public site):
 
 ```bash
 npm run build:pages

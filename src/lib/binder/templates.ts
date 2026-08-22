@@ -1,4 +1,5 @@
 import { newId } from "@/lib/utils";
+import { captionFromDocket, partyCaption } from "./docket";
 import type { BinderConfig, Column, CourtTemplate, Matter } from "./types";
 
 export const DEFAULT_CONFIG: BinderConfig = {
@@ -28,11 +29,17 @@ export const DEFAULT_CONFIG: BinderConfig = {
   exhibitScheme: "none",
 };
 
+const GENERIC_COLUMNS: Omit<Column, "id">[] = [
+  { name: "Sr No.", type: "serial", weight: 8 },
+  { name: "Particulars", type: "text", weight: 60 },
+  { name: "Pages", type: "pages", weight: 16 },
+];
+
 export const TEMPLATES: CourtTemplate[] = [
   {
     id: "nclt-compilation",
     name: "NCLT compilation",
-    blurb: "Judgement compilation for an I.A. in a company petition.",
+    blurb: "Judgement compilation for an I.A. in a company petition — only if that is your forum.",
     tile: "cyan",
     config: {
       court: "National Company Law Tribunal",
@@ -425,51 +432,101 @@ export function configFrom(t: CourtTemplate): BinderConfig {
   return { ...DEFAULT_CONFIG, ...t.config };
 }
 
-export function matterNameFrom(config: BinderConfig): string {
-  const title = config.docTitle.trim() || "Untitled binder";
-  const cn = config.caseNumber.trim();
-  if (cn) return `${cn} — ${title}`.slice(0, 80);
-  return title.slice(0, 80);
+export function defaultColumns(): Column[] {
+  return GENERIC_COLUMNS.map((c) => ({ ...c, id: newId() }));
+}
+
+export function emptyDocket(): Pick<
+  Matter,
+  | "petitioner"
+  | "respondent"
+  | "stage"
+  | "status"
+  | "lastCoram"
+  | "lastListing"
+  | "filedOn"
+  | "partner"
+  | "associates"
+  | "tags"
+  | "hearingNotes"
+  | "tasks"
+  | "orders"
+  | "issues"
+  | "sample"
+> {
+  return {
+    petitioner: "",
+    respondent: "",
+    stage: "",
+    status: "Pending",
+    lastCoram: "",
+    lastListing: "",
+    filedOn: "",
+    partner: "",
+    associates: "",
+    tags: [],
+    hearingNotes: [],
+    tasks: [],
+    orders: [],
+    issues: [],
+    sample: false,
+  };
+}
+
+export function matterNameFrom(m: Matter): string {
+  const parties = partyCaption(m);
+  const cn = m.config.caseNumber.trim();
+  if (m.petitioner.trim() || m.respondent.trim()) {
+    return (cn ? `${cn} — ${parties}` : parties).slice(0, 80);
+  }
+  const title = m.config.docTitle.trim();
+  if (cn && title) return `${cn} — ${title}`.slice(0, 80);
+  if (title) return title.slice(0, 80);
+  if (cn) return cn.slice(0, 80);
+  return m.name || "New matter";
 }
 
 export function createMatter(template?: CourtTemplate): Matter {
-  const t = template ?? TEMPLATES[0];
+  if (!template) return blankMatter();
   const now = Date.now();
-  const config = configFrom(t);
+  const config = configFrom(template);
   return {
     id: newId(),
-    name: t.name,
+    name: template.name,
     createdAt: now,
     updatedAt: now,
-    templateId: t.id,
+    templateId: template.id,
     config,
-    columns: columnsFrom(t),
+    columns: columnsFrom(template),
     docs: [],
     deadlines: [],
     oralOutline: "",
+    ...emptyDocket(),
   };
 }
 
 export function blankMatter(): Matter {
   const now = Date.now();
-  return {
+  const m: Matter = {
     id: newId(),
-    name: "New binder",
+    name: "New matter",
     createdAt: now,
     updatedAt: now,
     templateId: "blank",
     config: {
       ...DEFAULT_CONFIG,
-      docTitle: "COMPILATION",
-      causeTitle: "**BEFORE THE [COURT]**\n\n**[CASE NUMBER]**\n",
+      docTitle: "",
+      causeTitle: "",
     },
-    columns: [
-      { id: newId(), name: "Sr No.", type: "serial", weight: 8 },
-      { id: newId(), name: "Particulars", type: "case", weight: 60 },
-      { id: newId(), name: "Pages", type: "pages", weight: 16 },
-    ],
+    columns: defaultColumns(),
     docs: [],
     deadlines: [],
     oralOutline: "",
+    ...emptyDocket(),
   };
+  return m;
+}
+
+export function stampCaption(m: Matter): void {
+  m.config.causeTitle = captionFromDocket(m);
 }
