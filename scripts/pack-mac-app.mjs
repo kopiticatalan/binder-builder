@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Assemble Binder Builder.app (WKWebView + bundled source) and zip it
- * into public/Binder-Builder-for-Mac.zip for GitHub Pages / Releases.
+ * Assemble Binder Builder.app (WKWebView + Python stdlib server + static SPA)
+ * and zip it into public/Binder-Builder-for-Mac.zip.
  */
 import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -15,33 +15,46 @@ const appRoot = join(staging, appName);
 const contents = join(appRoot, "Contents");
 const macos = join(contents, "MacOS");
 const resources = join(contents, "Resources");
-const bundled = join(resources, "app");
+const web = join(resources, "web");
 const zipName = "Binder-Builder-for-Mac.zip";
 const zipOut = join(root, "public", zipName);
 
-const SKIP = new Set([
-  "node_modules",
-  "dist",
-  ".output",
-  ".vercel",
-  ".tanstack",
-  ".git",
-  "screenshots",
-  "artifacts",
-  "macos",
-  "coverage",
-  zipName,
-]);
+if (!process.env.SKIP_DESKTOP_BUILD) {
+  const built = spawnSync("npm", ["run", "build:desktop"], {
+    cwd: root,
+    stdio: "inherit",
+    env: process.env,
+  });
+  if (built.status !== 0) {
+    console.error("[pack-mac] desktop SPA build failed");
+    process.exit(built.status || 1);
+  }
+}
+
+const distClient = join(root, "dist", "client");
+if (!existsSync(join(distClient, "index.html"))) {
+  console.error("[pack-mac] missing dist/client/index.html — run npm run build:desktop");
+  process.exit(1);
+}
 
 rmSync(staging, { recursive: true, force: true });
 mkdirSync(macos, { recursive: true });
 mkdirSync(resources, { recursive: true });
-mkdirSync(bundled, { recursive: true });
+mkdirSync(web, { recursive: true });
 
 copyFileSync(join(root, "macos", "Info.plist"), join(contents, "Info.plist"));
 copyFileSync(join(root, "macos", "run"), join(macos, "run"));
 chmodSync(join(macos, "run"), 0o755);
 copyFileSync(join(root, "macos", "How to open.txt"), join(staging, "How to open.txt"));
+
+for (const name of ["server.py", "court.py", "forums.py"]) {
+  const src = join(root, "macos", name);
+  if (!existsSync(src)) {
+    console.error(`[pack-mac] missing ${name}`);
+    process.exit(1);
+  }
+  copyFileSync(src, join(resources, name));
+}
 
 const webkitCandidates = [
   join(root, "macos", "webkit-window"),
@@ -62,25 +75,18 @@ const icnsCandidates = [
 const icns = icnsCandidates.find((p) => existsSync(p));
 if (icns) copyFileSync(icns, join(resources, "AppIcon.icns"));
 
-function shouldSkip(name) {
-  if (SKIP.has(name)) return true;
-  if (name.startsWith(".") && name !== ".grok") return true;
-  return false;
+function copyWeb(from, to) {
+  mkdirSync(to, { recursive: true });
+  for (const name of readdirSync(from)) {
+    if (name === zipName) continue;
+    const src = join(from, name);
+    const dest = join(to, name);
+    if (statSync(src).isDirectory()) cpSync(src, dest, { recursive: true });
+    else copyFileSync(src, dest);
+  }
 }
-
-for (const name of readdirSync(root)) {
-  if (shouldSkip(name)) continue;
-  const from = join(root, name);
-  const to = join(bundled, name);
-  if (statSync(from).isDirectory()) cpSync(from, to, { recursive: true });
-  else if (name !== zipName) copyFileSync(from, to);
-}
-rmSync(join(bundled, "public", zipName), { force: true });
-
-mkdirSync(join(bundled, ".grok"), { recursive: true });
-const envSrc = join(root, ".grok", "app-env.json");
-if (existsSync(envSrc)) copyFileSync(envSrc, join(bundled, ".grok", "app-env.json"));
-else writeFileSync(join(bundled, ".grok", "app-env.json"), JSON.stringify({ VITE_AUTH_ENABLED: "false" }) + "\n");
+copyWeb(distClient, web);
+rmSync(join(web, zipName), { force: true });
 
 mkdirSync(join(root, "public"), { recursive: true });
 rmSync(zipOut, { force: true });
@@ -97,9 +103,11 @@ with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
         mode = p.stat().st_mode
         info = zipfile.ZipInfo(rel)
         info.compress_type = zipfile.ZIP_DEFLATED
-        info.external_attr = (stat.S_IMODE(mode) | (stat.S_IFDIR if False else stat.S_IFREG)) << 16
+        info.external_attr = stat.S_IFREG << 16
         if stat.S_IMODE(mode) & 0o111:
-            info.external_attr |= 0o755 << 16
+            info.external_attr = (0o755 | stat.S_IFREG) << 16
+        else:
+            info.external_attr = (0o644 | stat.S_IFREG) << 16
         zf.writestr(info, p.read_bytes())
 print(out, out.stat().st_size)
 `;

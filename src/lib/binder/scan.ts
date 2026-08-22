@@ -1,9 +1,8 @@
 import {
-  fetchCauselistJudges,
-  scanCauselistBatch,
+  scanBhcDay,
   scanNcltLists,
   scanSatLists,
-} from "@/lib/court/actions";
+} from "@/lib/court/client";
 import type { ListingRow } from "@/lib/types";
 import { forumOf, matterCasenos, short } from "@/lib/utils";
 import { prettyCourtDay } from "./dates";
@@ -134,65 +133,52 @@ export async function runCauselistScan(numDays: number) {
     for (const day of days) {
       setScanProgress(`Boards for ${day.short}…`);
       useBinder.getState().setStatus(`Bombay HC boards for ${day.short}…`, "busy");
-      const res = await fetchCauselistJudges({ data: { date: day.date } });
-      if (!res.ok) {
-        setScanProgress(res.error);
+      const scanned = await scanBhcDay({
+        data: {
+          date: day.date,
+          watched: settings.watched,
+          tracked,
+        },
+      });
+      if (!scanned.ok) {
+        setScanProgress(scanned.error);
         continue;
       }
-      const items = res.judges.flatMap((j) =>
-        j.links.map((l) => ({ href: l.href, judge: j.judge, list_type: l.label })),
-      );
-      if (!items.length) continue;
-      const chunk = 8;
-      for (let i = 0; i < items.length; i += chunk) {
-        const slice = items.slice(i, i + chunk);
-        const label = `${day.short}: lists ${i + 1}–${Math.min(i + chunk, items.length)} of ${items.length}`;
-        setScanProgress(label);
-        useBinder.getState().setStatus(label, "busy");
-        const scanned = await scanCauselistBatch({
-          data: {
-            items: slice,
-            watched: settings.watched,
-            tracked,
-          },
+      for (const hit of scanned.hits) {
+        const mine = tracked.includes(hit.caseno.toUpperCase());
+        const m = matters.find((x) => matterCasenos(x).includes(hit.caseno.toUpperCase()));
+        const mm = hit.caseno.match(/^([A-Z]+)(\(L\))?\/(\d+)\/(\d{4})$/i);
+        allRows.push({
+          date: day.short,
+          date_full: day.full,
+          date_ddmm: day.date,
+          matter:
+            mine && m
+              ? `${short(m.petitioner)} v ${short(m.respondent)}`.replace(/^ v | v$/g, "")
+              : hit.parties || hit.caseno,
+          number: hit.caseno,
+          serial: hit.serial,
+          list_type: hit.list_type,
+          judge: hit.judge,
+          court: hit.court,
+          caption: hit.caption,
+          connected: hit.connected,
+          reasons: [...(mine ? ["Your matter"] : []), ...hit.advocates],
+          tracked: mine,
+          mid: m?.id ?? null,
+          add:
+            mine || !mm
+              ? null
+              : {
+                  forum: "bhc",
+                  abbr: mm[1],
+                  stampreg: mm[2] ? "S" : "R",
+                  no: mm[3],
+                  year: mm[4],
+                },
         });
-        if (!scanned.ok) continue;
-        for (const hit of scanned.hits) {
-          const mine = tracked.includes(hit.caseno.toUpperCase());
-          const m = matters.find((x) => matterCasenos(x).includes(hit.caseno.toUpperCase()));
-          const mm = hit.caseno.match(/^([A-Z]+)(\(L\))?\/(\d+)\/(\d{4})$/i);
-          allRows.push({
-            date: day.short,
-            date_full: day.full,
-            date_ddmm: day.date,
-            matter:
-              mine && m
-                ? `${short(m.petitioner)} v ${short(m.respondent)}`.replace(/^ v | v$/g, "")
-                : hit.parties || hit.caseno,
-            number: hit.caseno,
-            serial: hit.serial,
-            list_type: hit.list_type,
-            judge: hit.judge,
-            court: hit.court,
-            caption: hit.caption,
-            connected: hit.connected,
-            reasons: [...(mine ? ["Your matter"] : []), ...hit.advocates],
-            tracked: mine,
-            mid: m?.id ?? null,
-            add:
-              mine || !mm
-                ? null
-                : {
-                    forum: "bhc",
-                    abbr: mm[1],
-                    stampreg: mm[2] ? "S" : "R",
-                    no: mm[3],
-                    year: mm[4],
-                  },
-          });
-        }
-        mergeListingRows(allRows, days, numDays, matters);
       }
+      mergeListingRows(allRows, days, numDays, matters);
     }
     mergeListingRows(allRows, days, numDays, matters);
     const mine = allRows.filter((r) => r.tracked).length;

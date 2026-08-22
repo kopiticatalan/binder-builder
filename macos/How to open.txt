@@ -8,10 +8,10 @@ Binder Builder for Mac
 macOS asks once because this is not from the App Store.
 After that, open it like any other app.
 
-Needs Node.js (LTS) from https://nodejs.org — first launch installs
-the rest automatically (a couple of minutes, online).
+Needs Python 3, which macOS already has (or install with:
+xcode-select --install). No Node. No npm. No “are you online” install.
 
 From court, cause lists and order PDFs work in this Mac app.
-The GitHub Pages site is a static preview and cannot scrape.
+The public web page is a static preview and cannot scrape court sites.
 
 Apple Silicon (M1 / M2 / M3 / M4).

@@ -158,6 +158,29 @@ export const scanCauselistBatch = createServerFn({ method: "POST" })
     }
   });
 
+export const scanBhcDay = createServerFn({ method: "POST" })
+  .validator(
+    z.object({
+      date: z.string(),
+      watched: z.array(z.string()),
+      tracked: z.array(z.string()),
+    }),
+  )
+  .handler(async ({ data }) => {
+    try {
+      const { scanBhcDay: run } = await import("./client.server");
+      const out = await run(data);
+      return { ok: true as const, hits: out.hits, judges: out.judges };
+    } catch (e) {
+      return {
+        ok: false as const,
+        error: e instanceof Error ? e.message : "Cause-list scan failed.",
+        hits: [] as { serial: string; caseno: string }[],
+        judges: 0,
+      };
+    }
+  });
+
 export const downloadCauselistPdf = createServerFn({ method: "POST" })
   .validator(
     z.object({

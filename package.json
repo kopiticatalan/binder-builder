@@ -12,6 +12,7 @@
     "db:migrate": "node scripts/migrate.mjs",
     "build:dev": "node scripts/with-app-env.mjs vite build --mode development",
     "build:pages": "GITHUB_PAGES=1 NITRO_PRESET=github-pages node scripts/with-app-env.mjs vite build && node scripts/pages-fallback.mjs",
+    "build:desktop": "DESKTOP_SPA=1 node scripts/with-app-env.mjs vite build && node scripts/pages-fallback.mjs",
     "desktop": "node scripts/with-app-env.mjs vite dev --host 127.0.0.1 --port 8765",
     "pack:mac": "node scripts/pack-mac-app.mjs",
     "typecheck": "tsc --noEmit",

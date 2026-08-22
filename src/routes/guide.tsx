@@ -6,7 +6,7 @@ export const Route = createFileRoute("/guide")({ component: GuidePage });
 const BLOCKS = [
   {
     title: "From court",
-    body: "The main way in. Pick Bombay High Court, SAT or NCLT, then the case type, number and year. The live record is fetched — parties, CNR, stage, next listing, advocates, orders. Order PDFs download onto this device and land in the binder as papers. Run the app locally so the server can talk to the court sites. The static GitHub Pages copy cannot scrape.",
+    body: "The main way in. Pick Bombay High Court, SAT or NCLT, then the case type, number and year. The live record is fetched — parties, CNR, stage, next listing, advocates, orders. Order PDFs download onto this device and land in the binder as papers. Use the Mac app so this machine can talk to the court sites. The public web page cannot scrape.",
   },
   {
     title: "Cause lists",

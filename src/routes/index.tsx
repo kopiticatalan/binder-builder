@@ -182,7 +182,7 @@ function StartHub() {
                 wide
                 title="Mac app"
                 live="Unzip · drag to Applications"
-                subtitle="Right-click → Open. Court fetch runs on your Mac."
+                subtitle="Right-click → Open. Court fetch on your Mac."
                 icon={<Download className="size-7" />}
                 onClick={() => {
                   const a = document.createElement("a");

@@ -104,6 +104,14 @@ function header(
   return v;
 }
 
+function rawPathAndSearch(url: string) {
+  const noHash = url.split("#")[0] ?? url;
+  const scheme = noHash.indexOf("://");
+  const fromHost = scheme >= 0 ? noHash.slice(scheme + 3) : noHash;
+  const slash = fromHost.indexOf("/");
+  return slash >= 0 ? fromHost.slice(slash) : "/";
+}
+
 function rawRequest(
   url: string,
   opts: {
@@ -127,7 +135,9 @@ function rawRequest(
         protocol: u.protocol,
         hostname: u.hostname,
         port: u.port || 443,
-        path: u.pathname + u.search,
+        // Keep the original path encoding. Court download URLs are signed and
+        // `new URL().pathname` re-encodes `=` in the Laravel payload.
+        path: rawPathAndSearch(url),
         method: opts.method,
         agent,
         headers,

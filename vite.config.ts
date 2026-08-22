@@ -151,11 +151,76 @@ function isGitHubPagesBuild() {
   );
 }
 
+function isDesktopSpaBuild() {
+  return process.env.DESKTOP_SPA === "1";
+}
+
+function courtApiPlugin(): Plugin {
+  return {
+    name: "binder-court-api",
+    apply: "serve",
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        const pathOnly = (req.url ?? "").split("?", 1)[0] ?? "";
+        if (pathOnly === "/api/health" || pathOnly === "/api/version") {
+          res.statusCode = 200;
+          res.setHeader("content-type", "application/json; charset=utf-8");
+          res.end(JSON.stringify({ ok: true, version: "1.1.0" }));
+          return;
+        }
+        if (!pathOnly.startsWith("/api/court/")) {
+          next();
+          return;
+        }
+        if ((req.method ?? "GET").toUpperCase() !== "POST") {
+          res.statusCode = 405;
+          res.setHeader("content-type", "text/plain; charset=utf-8");
+          res.end("Method Not Allowed");
+          return;
+        }
+        try {
+          const chunks: Buffer[] = [];
+          await new Promise<void>((resolve, reject) => {
+            req.on("data", (c) => chunks.push(c as Buffer));
+            req.on("end", resolve);
+            req.on("error", reject);
+          });
+          const raw = Buffer.concat(chunks).toString("utf8") || "{}";
+          const data = JSON.parse(raw) as Record<string, unknown>;
+          const op = pathOnly.slice("/api/court/".length).replace(/\/$/, "");
+          const mod = (await server.ssrLoadModule("/src/lib/court/dispatch.server.ts")) as {
+            dispatchCourt: (op: string, data: Record<string, unknown>) => Promise<unknown>;
+          };
+          const result = await mod.dispatchCourt(op, data);
+          const body = Buffer.from(JSON.stringify(result));
+          res.statusCode = 200;
+          res.setHeader("content-type", "application/json; charset=utf-8");
+          res.setHeader("content-length", String(body.length));
+          res.end(body);
+        } catch (err) {
+          console.error("[binder] /api/court failed:", err);
+          const body = Buffer.from(
+            JSON.stringify({
+              ok: false,
+              error: err instanceof Error ? err.message : "Court lookup failed.",
+            }),
+          );
+          res.statusCode = 200;
+          res.setHeader("content-type", "application/json; charset=utf-8");
+          res.end(body);
+        }
+      });
+    },
+  };
+}
+
 // `0.0.0.0:8080` is the live-preview contract — don't change host/port.
 // The dev server starts once `src/router.tsx` and `src/routes/` exist — see
 // AGENTS.md § "First scaffold".
 export default defineConfig(({ command, isPreview }) => {
   const isPages = isGitHubPagesBuild();
+  const isDesktop = isDesktopSpaBuild();
+  const spaBuild = isPages || isDesktop;
   return {
     base: isPages ? "/binder-builder/" : "/",
     server: {
@@ -173,6 +238,7 @@ export default defineConfig(({ command, isPreview }) => {
       pgliteBootstrapPlugin(),
       // Before tanstackStart so /auth/popup never falls through to the SPA.
       authPopupPlugin(),
+      courtApiPlugin(),
       // Dev-only /__app-env, read by scripts/check-auth-invariant.mjs.
       appEnvPlugin(),
       // PWA head + ?install=1 tutorial page; runs before Start/Nitro.
@@ -184,9 +250,11 @@ export default defineConfig(({ command, isPreview }) => {
               spa: { enabled: true },
               router: { basepath: "/binder-builder" },
             }
-          : {},
+          : isDesktop
+            ? { spa: { enabled: true } }
+            : {},
       ),
-      ...(!isPages && (command === "build" || isPreview)
+      ...(!spaBuild && (command === "build" || isPreview)
         ? [
             nitro({
               preset: "vercel",

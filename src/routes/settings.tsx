@@ -189,9 +189,9 @@ function SettingsPage() {
       <section className="mb-10 max-w-xl">
         <p className="label-caps mb-3">Mac app</p>
         <p className="mb-4 text-sm text-muted leading-relaxed">
-          Unzip, drag Binder Builder into Applications, then right-click → Open. Needs Node.js from nodejs.org. First
-          launch installs the rest. High Court, SAT and NCLT fetch only work in this local app — not on the public web
-          page.
+          Unzip, drag Binder Builder into Applications, then right-click → Open. Needs Python 3
+          (already on a Mac, or xcode-select --install). No Node. High Court, SAT and NCLT fetch
+          only work in this Mac app — not on the public web page.
         </p>
         <a href={publicUrl("Binder-Builder-for-Mac.zip")} download="Binder-Builder-for-Mac.zip">
           <MetroButton variant="accent">Download for Mac</MetroButton>

@@ -3,7 +3,8 @@ import { useState } from "react";
 import { MetroButton, MetroSelect } from "@/components/metro/controls";
 import { PageShell } from "@/components/metro/shell";
 import { Pivot } from "@/components/metro/pivot";
-import { downloadCauselistPdf, resolveListing } from "@/lib/court/actions";
+import { downloadCauselistPdf, resolveListing } from "@/lib/court/client";
+import { courtFailMessage } from "@/lib/court/local";
 import { matterFromLookup } from "@/lib/binder/court-map";
 import { useCourt } from "@/lib/binder/court-store";
 import { boardRows, dayPhrase, downloadHearingsIcs } from "@/lib/binder/docket";
@@ -67,7 +68,7 @@ function ListingsPage() {
       const pulled = await pullMissingOrders(matter);
       setStatus(`${pulled.added} order(s) downloaded.`, "ok");
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : "Could not add that matter.", "err");
+      setStatus(courtFailMessage(e), "err");
     } finally {
       setBusyId("");
     }
@@ -89,7 +90,7 @@ function ListingsPage() {
       downloadBlob(new Blob([bin], { type: "application/pdf" }), out.file.filename);
       setStatus("Cause-list PDF downloaded.", "ok");
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : "Could not fetch that list.", "err");
+      setStatus(courtFailMessage(e), "err");
     } finally {
       setBusyId("");
     }

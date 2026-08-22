@@ -173,8 +173,7 @@ export type CauselistJudge = {
   links: { href: string; label: string }[];
 };
 
-export async function listCauselistDay(dateDdMm: string): Promise<CauselistJudge[]> {
-  const jar = new CookieJar();
+async function listCauselistDayWithJar(dateDdMm: string, jar: CookieJar): Promise<CauselistJudge[]> {
   const pageUrl = `${COURT_SITE}/bhc/causelistFinal`;
   const pageRes = await courtGet(pageUrl, jar);
   const page = pageRes.buf.toString("utf8");
@@ -198,6 +197,10 @@ export async function listCauselistDay(dateDdMm: string): Promise<CauselistJudge
   return parseCauselistJudges(json.page);
 }
 
+export async function listCauselistDay(dateDdMm: string): Promise<CauselistJudge[]> {
+  return listCauselistDayWithJar(dateDdMm, new CookieJar());
+}
+
 export type ScanHit = {
   serial: string;
   caseno: string;
@@ -210,21 +213,24 @@ export type ScanHit = {
   court: string;
 };
 
-export async function scanCauselistPdfs(input: {
-  items: { href: string; judge: string; list_type: string }[];
-  watched: string[];
-  tracked: string[];
-}): Promise<ScanHit[]> {
+export async function scanCauselistPdfs(
+  input: {
+    items: { href: string; judge: string; list_type: string }[];
+    watched: string[];
+    tracked: string[];
+  },
+  jar?: CookieJar,
+): Promise<ScanHit[]> {
   const pats = buildFirmPatterns(input.watched);
   const tracked = new Set(input.tracked.map((t) => t.toUpperCase()));
-  const jar = new CookieJar();
-  await courtGet(`${COURT_SITE}/bhc/causelistFinal`, jar);
+  const session = jar ?? new CookieJar();
+  if (!jar) await courtGet(`${COURT_SITE}/bhc/causelistFinal`, session);
 
   const hits: ScanHit[] = [];
   const results = await mapPool(input.items, 4, async (item) => {
     try {
       const res = await courtRequest(item.href, {
-        jar,
+        jar: session,
         timeoutMs: 60000,
         headers: {
           "X-Requested-With": "XMLHttpRequest",
@@ -271,16 +277,33 @@ export async function scanCauselistPdfs(input: {
   return hits;
 }
 
+export async function scanBhcDay(input: {
+  date: string;
+  watched: string[];
+  tracked: string[];
+}): Promise<{ judges: number; hits: ScanHit[] }> {
+  const jar = new CookieJar();
+  const judges = await listCauselistDayWithJar(input.date, jar);
+  const items = judges.flatMap((j) =>
+    j.links.map((l) => ({ href: l.href, judge: j.judge, list_type: l.label })),
+  );
+  if (!items.length) return { judges: 0, hits: [] };
+  const hits = await scanCauselistPdfs(
+    { items, watched: input.watched, tracked: input.tracked },
+    jar,
+  );
+  return { judges: judges.length, hits };
+}
+
 export async function fetchCauselistPdf(input: {
   date: string;
   judge: string;
   list_type: string;
 }): Promise<{ filename: string; base64: string } | null> {
-  const judges = await listCauselistDay(input.date);
+  const jar = new CookieJar();
+  const judges = await listCauselistDayWithJar(input.date, jar);
   const jl = input.judge.trim().toLowerCase();
   const tl = input.list_type.trim().toLowerCase();
-  const jar = new CookieJar();
-  await courtGet(`${COURT_SITE}/bhc/causelistFinal`, jar);
   for (const jd of judges) {
     if (jd.judge.trim().toLowerCase() !== jl) continue;
     const link =
@@ -314,22 +337,23 @@ export async function resolveListingAdd(add: {
   let lastErr = "Could not resolve that case type.";
   for (const side of ["2", "1"] as const) {
     const types = await getCaseTypes(side);
-    const match = types.find(
-      (t) => t.label.split(" - ")[0].trim().toUpperCase() === abbr,
-    );
-    if (!match) continue;
-    const params: LookupParams = {
-      side,
-      stampreg: add.stampreg,
-      case_type: match.value,
-      case_no: String(add.no),
-      year: String(add.year),
-    };
-    try {
-      const lookup = await lookupCase(params);
-      return { params, type_name: match.label, lookup };
-    } catch (e) {
-      lastErr = e instanceof Error ? e.message : String(e);
+    const matches = types
+      .filter((t) => t.label.split(" - ")[0].trim().toUpperCase() === abbr)
+      .sort((a, b) => a.label.length - b.label.length || a.label.localeCompare(b.label));
+    for (const match of matches) {
+      const params: LookupParams = {
+        side,
+        stampreg: add.stampreg,
+        case_type: match.value,
+        case_no: String(add.no),
+        year: String(add.year),
+      };
+      try {
+        const lookup = await lookupCase(params);
+        return { params, type_name: match.label, lookup };
+      } catch (e) {
+        lastErr = e instanceof Error ? e.message : String(e);
+      }
     }
   }
   throw new Error(lastErr);

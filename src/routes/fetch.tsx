@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { Field, MetroButton, MetroInput, MetroSelect } from "@/components/metro/controls";
 import { PageShell } from "@/components/metro/shell";
 import { Pivot } from "@/components/metro/pivot";
-import { fetchCase, fetchCaseTypes } from "@/lib/court/actions";
+import { fetchCase, fetchCaseTypes } from "@/lib/court/client";
+import { courtFailMessage } from "@/lib/court/local";
 import { matterFromLookup } from "@/lib/binder/court-map";
 import { useCourt } from "@/lib/binder/court-store";
 import { pullMissingOrders } from "@/lib/binder/orders";
@@ -65,7 +66,7 @@ function FetchPage() {
       .catch((e) => {
         if (cancelled) return;
         setLoadingTypes(false);
-        setStatus(e instanceof Error ? e.message : "Could not load case types.", "err");
+        setStatus(courtFailMessage(e), "err");
       });
     return () => {
       cancelled = true;
@@ -119,12 +120,7 @@ function FetchPage() {
       setCaseNo("");
       void navigate({ to: "/docket" });
     } catch (e) {
-      setStatus(
-        e instanceof Error
-          ? e.message
-          : "Court fetch needs the local app (not the static GitHub Pages build).",
-        "err",
-      );
+      setStatus(courtFailMessage(e), "err");
     } finally {
       setSaving(false);
     }
@@ -292,8 +288,8 @@ function FetchPage() {
         {saving ? "Finding…" : "Find and save"}
       </MetroButton>
       <p className="mt-4 max-w-xl text-xs text-muted leading-relaxed">
-        Existing notes, tasks and binder papers are kept if you add the same case again. This only works when you run the
-        app locally — court sites are fetched by the server, not from the static GitHub Pages copy.
+        Existing notes, tasks and binder papers are kept if you add the same case again. Use the Mac
+        app for High Court / SAT / NCLT lookup — the public web page cannot reach court sites.
       </p>
     </PageShell>
   );

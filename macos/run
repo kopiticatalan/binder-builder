@@ -1,92 +1,43 @@
 #!/bin/bash
-# Native launcher. Node runs the chambers desk (court fetch needs a local
-# server). The UI is WKWebView — no Chrome.
+# Native launcher. Python 3 (stdlib) serves the desk and talks to court sites.
+# The UI is WKWebView — no Chrome, no Node, no npm.
 set -e
 BASE="http://127.0.0.1:8765"
 DIR="$(cd "$(dirname "$0")/../Resources" && pwd)"
-SRC="$DIR/app"
-APP_HOME="$HOME/Library/Application Support/BinderBuilder"
-STAMP_FILE="$APP_HOME/.bundle-version"
-BUNDLE_VER="1.0.0"
-LOG="$APP_HOME/app.log"
-
-notify() {
-  osascript -e "display notification \"$1\" with title \"Binder Builder\"" >/dev/null 2>&1 || true
-}
+PY="$(command -v python3 || echo /usr/bin/python3)"
+BUNDLE_VER="$(sed -n 's/^VERSION *= *"\([^"]*\)".*/\1/p' "$DIR/server.py" | head -1)"
 
 alert() {
   osascript -e "display alert \"Binder Builder\" message \"$1\"" >/dev/null 2>&1 || true
 }
 
-find_node() {
-  if command -v node >/dev/null 2>&1; then command -v node; return; fi
-  for c in \
-    /opt/homebrew/bin/node \
-    /usr/local/bin/node \
-    "$HOME/.nvm/versions/node/"*/bin/node \
-    "$HOME/.local/share/fnm/aliases/default/bin/node" \
-    "$HOME/.fnm/aliases/default/bin/node"
-  do
-    if [ -x "$c" ]; then echo "$c"; return; fi
-  done
-}
-
-NODE="$(find_node || true)"
-if [ -z "$NODE" ] || [ ! -x "$NODE" ]; then
-  alert "Install Node.js LTS from https://nodejs.org (Keep npm checked), then reopen Binder Builder."
-  open "https://nodejs.org/en/download" >/dev/null 2>&1 || true
+if ! "$PY" -c 'import http.server' >/dev/null 2>&1; then
+  alert "Python 3 is needed. Open Terminal and run:  xcode-select --install   then reopen Binder Builder."
   exit 1
 fi
-NODE_DIR="$(cd "$(dirname "$NODE")" && pwd)"
-export PATH="$NODE_DIR:/opt/homebrew/bin:/usr/local/bin:$PATH"
-NPM="$(command -v npm || echo "$NODE_DIR/npm")"
 
-mkdir -p "$APP_HOME"
-
-if [ "$(cat "$STAMP_FILE" 2>/dev/null || true)" != "$BUNDLE_VER" ]; then
-  notify "Updating Binder Builder files…"
-  KEEP=""
-  if [ -d "$APP_HOME/app/node_modules" ]; then
-    KEEP="$APP_HOME/node_modules.keep"
-    rm -rf "$KEEP"
-    mv "$APP_HOME/app/node_modules" "$KEEP"
+if curl -s -o /dev/null --max-time 2 "$BASE/api/health"; then
+  RUN_VER="$(curl -s --max-time 2 "$BASE/api/version" | sed -n 's/.*"version": *"\([^"]*\)".*/\1/p')"
+  if [ -z "$RUN_VER" ] || [ "$RUN_VER" != "$BUNDLE_VER" ]; then
+    curl -s -o /dev/null --max-time 3 -X POST "$BASE/api/quit" || true
+    for i in $(seq 1 25); do curl -s -o /dev/null --max-time 1 "$BASE/api/health" || break; sleep 0.3; done
   fi
-  rm -rf "$APP_HOME/app"
-  mkdir -p "$APP_HOME/app"
-  cp -R "$SRC/." "$APP_HOME/app/"
-  if [ -d "$KEEP" ]; then
-    mv "$KEEP" "$APP_HOME/app/node_modules"
-  fi
-  echo "$BUNDLE_VER" > "$STAMP_FILE"
 fi
 
-cd "$APP_HOME/app"
-
-if [ ! -d node_modules ]; then
-  notify "First launch — installing. This can take a couple of minutes."
-  if ! "$NPM" install >>"$LOG" 2>&1; then
-    alert "Could not install. Check you are online, then reopen. Log: $LOG"
+if ! curl -s -o /dev/null --max-time 1 "$BASE/api/health"; then
+  "$PY" "$DIR/server.py" --serve >/dev/null 2>&1 &
+  ok=0
+  for i in $(seq 1 40); do
+    if curl -s -o /dev/null --max-time 1 "$BASE/api/health"; then
+      ok=1
+      break
+    fi
+    sleep 0.2
+  done
+  if [ "$ok" != "1" ]; then
+    alert "The desk did not start. Python 3 is required (xcode-select --install)."
     exit 1
   fi
-fi
-
-if curl -sf -o /dev/null --max-time 1 "$BASE/"; then
-  exec "$(dirname "$0")/webkit-window" "$BASE/"
-fi
-
-notify "Starting the chambers desk…"
-"$NPM" run desktop >>"$LOG" 2>&1 &
-ok=0
-for i in $(seq 1 180); do
-  if curl -sf -o /dev/null --max-time 1 "$BASE/"; then
-    ok=1
-    break
-  fi
-  sleep 0.5
-done
-if [ "$ok" != "1" ]; then
-  alert "The desk did not start. Open Terminal and run:  cat \"$LOG\""
-  exit 1
 fi
 
 exec "$(dirname "$0")/webkit-window" "$BASE/"

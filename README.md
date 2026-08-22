@@ -8,9 +8,9 @@ Windows Phone–era Start tiles. Matters and PDFs stay on this device.
 
 **Mac app (court fetch works here):** [Download Binder Builder for Mac](https://kopiticatalan.github.io/binder-builder/Binder-Builder-for-Mac.zip)
 
-Unzip, drag **Binder Builder** into Applications, then right-click → Open. Needs [Node.js LTS](https://nodejs.org). First launch installs the rest (a couple of minutes, online). Apple Silicon.
+Unzip, drag **Binder Builder** into Applications, then right-click → Open. Needs Python 3 (already on a Mac, or `xcode-select --install`). No Node. Apple Silicon.
 
-The public web page is a static preview. Bombay High Court / SAT / NCLT lookup, cause-list scan and order PDFs need the Mac app (or `npm run dev` on this repo).
+The public web page is a static preview. Bombay High Court / SAT / NCLT lookup, cause-list scan and order PDFs need the Mac app.
 
 ## What it does
 
@@ -30,19 +30,11 @@ The public web page is a static preview. Bombay High Court / SAT / NCLT lookup, 
 
 PDFs never leave the device except when you tap an optional AI action (clean caption, read cite, holding, draft brief).
 
-## Run locally
+## Mac app from source
 
 ```bash
 npm install
-npm run dev
-```
-
-That is the build that fetches High Court / SAT / NCLT records.
-
-Mac `.app` from source:
-
-```bash
 npm run pack:mac
 ```
 
-writes `public/Binder-Builder-for-Mac.zip`.
+writes `public/Binder-Builder-for-Mac.zip`. The `.app` is Python 3 + WKWebView. Court scrape uses the same High Court / SAT / NCLT paths as the original Matter Tracker.
