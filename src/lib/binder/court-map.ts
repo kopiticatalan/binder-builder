@@ -96,6 +96,11 @@ export function matterFromLookup(
     sample: false,
     orderFolder: existing?.orderFolder || "",
     orderNamePattern: existing?.orderNamePattern || "",
+    parentId: existing?.parentId || "",
+    connected: existing?.connected || "",
+    tribunal: existing?.tribunal || "",
+    seat: existing?.seat || "",
+    institution: existing?.institution || "",
   };
 
   const label = caseLabel(next);
@@ -129,16 +134,16 @@ function mergeOrders(lookup: CourtLookup, existing?: Matter): OrderMeta[] {
       downloaded: prev?.downloaded ?? Boolean(prev?.docId),
       docId: prev?.docId,
       diskPath: prev?.diskPath,
+      common: prev?.common,
     };
   });
-  const keys = new Set(fetched.map((o) => o.key).filter(Boolean));
-  const manual = (existing?.orders ?? []).filter((o) => !o.key || !keys.has(o.key));
+  const manual = (existing?.orders ?? []).filter((o) => !o.key);
   return [...fetched, ...manual];
 }
 
 export function lookupParamsOf(m: Matter) {
   return {
-    forum: (m.forum === "sat" ? "sat" : m.forum === "nclt" ? "nclt" : "bhc") as Forum,
+    forum: (m.forum === "sat" ? "sat" : m.forum === "nclt" ? "nclt" : "bhc") as "bhc" | "sat" | "nclt",
     bench: m.bench || undefined,
     side: m.side || "2",
     stampreg: (m.stampreg || "R") as StampReg,

@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import html
 import json
+import os
 import re
 import ssl
 import urllib.parse
@@ -37,6 +38,35 @@ def sanitize(s, maxlen=80):
     s = re.sub(r'[\\/:*?"<>|]', "", s or "")
     s = re.sub(r"\s+", " ", s).strip().rstrip(".")
     return s[:maxlen].strip()
+
+
+VC_RE = re.compile(r"https?://[^\s<>\"')\]]+", re.I)
+VC_HINT = re.compile(
+    r"vconsol|zoom\.us|meet\.google|teams\.microsoft|webex|\bvc\.|video.?conf|hcbombay",
+    re.I,
+)
+
+
+def extract_vc(text):
+    urls = []
+    for u in VC_RE.findall(text or ""):
+        u = re.sub(r"[.,;:]+$", "", u)
+        urls.append(u)
+    for u in urls:
+        if VC_HINT.search(u):
+            return u
+    return urls[0] if urls else ""
+
+
+def list_pdf_filename(date, court, judge, list_type):
+    parts = [re.sub(r"-", "", date or "")]
+    if court:
+        parts.append("Court %s" % court)
+    if list_type:
+        parts.append(list_type)
+    if judge:
+        parts.append(judge)
+    return sanitize(" ".join(p for p in parts if p), 110) + ".pdf"
 
 
 def short(s, n=55):
@@ -645,7 +675,7 @@ def list_causelist_day(date_ddmm):
     return judges
 
 
-def scan_causelist_pdfs(items, watched, tracked, opener=None):
+def scan_causelist_pdfs(items, watched, tracked, opener=None, date="", list_folder=""):
     pats = adv_patterns(watched)
     tracked_list = list(tracked or [])
     if opener is None:
@@ -664,10 +694,12 @@ def scan_causelist_pdfs(items, watched, tracked, opener=None):
             with opener.open(req, timeout=60) as r:
                 data = r.read()
             if data[:5] != b"%PDF-":
-                return []
+                return [], None
             text = pdf_text(data)
             mc = re.search(r"COURT\s*NO[.\s]*?(\d+)", text, re.I)
             court = mc.group(1) if mc else ""
+            vc = extract_vc(text)
+            filename = list_pdf_filename(date, court, item.get("judge") or "", item.get("list_type") or "")
             entries = parse_causelist_entries(text, pats)
             folded_advs = {}
             for e in entries:
@@ -677,14 +709,17 @@ def scan_causelist_pdfs(items, watched, tracked, opener=None):
                         if ad not in bucket:
                             bucket.append(ad)
             out = []
+            has_tracked = False
             for e in entries:
-                if e.get("folded"):
+                mine = is_tracked(e["caseno"], tracked_list)
+                if mine:
+                    has_tracked = True
+                if e.get("folded") and not mine:
                     continue
                 advs = list(e["advocates"])
                 for ad in folded_advs.get(e["serial"], []):
                     if ad not in advs:
                         advs.append(ad)
-                mine = is_tracked(e["caseno"], tracked_list)
                 if not mine and not advs:
                     continue
                 out.append(
@@ -698,21 +733,44 @@ def scan_causelist_pdfs(items, watched, tracked, opener=None):
                         "judge": item.get("judge") or "",
                         "list_type": item.get("list_type") or "",
                         "court": court,
+                        "vc": vc,
+                        "listFile": filename,
                     }
                 )
-            return out
+            pdf = None
+            if has_tracked and list_folder:
+                try:
+                    os.makedirs(list_folder, exist_ok=True)
+                    path = os.path.join(list_folder, filename)
+                    with open(path, "wb") as f:
+                        f.write(data)
+                    pdf = {
+                        "filename": filename,
+                        "path": path,
+                        "judge": item.get("judge") or "",
+                        "list_type": item.get("list_type") or "",
+                        "court": court,
+                        "vc": vc,
+                    }
+                    for h in out:
+                        h["listPath"] = path
+                except Exception:
+                    pdf = None
+            return out, pdf
         except Exception:
-            return []
-
+            return [], None
 
     hits = []
+    pdfs = []
     with ThreadPoolExecutor(max_workers=4) as ex:
-        for batch in ex.map(one, items or []):
+        for batch, pdf in ex.map(one, items or []):
             hits.extend(batch)
-    return hits
+            if pdf:
+                pdfs.append(pdf)
+    return hits, pdfs
 
 
-def scan_bhc_day(date_ddmm, watched, tracked):
+def scan_bhc_day(date_ddmm, watched, tracked, list_folder=""):
     opener, judges = _causelist_session(date_ddmm)
     items = [
         {"href": link["href"], "judge": jd["judge"], "list_type": link["label"]}
@@ -720,9 +778,11 @@ def scan_bhc_day(date_ddmm, watched, tracked):
         for link in jd["links"]
     ]
     if not items:
-        return {"judges": 0, "hits": []}
-    hits = scan_causelist_pdfs(items, watched, tracked, opener=opener)
-    return {"judges": len(judges), "hits": hits}
+        return {"judges": 0, "hits": [], "pdfs": []}
+    hits, pdfs = scan_causelist_pdfs(
+        items, watched, tracked, opener=opener, date=date_ddmm, list_folder=list_folder
+    )
+    return {"judges": len(judges), "hits": hits, "pdfs": pdfs}
 
 
 def fetch_causelist_pdf(date_ddmm, judge, list_type):

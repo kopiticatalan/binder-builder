@@ -17,7 +17,7 @@ from urllib.parse import unquote, urlparse
 import court
 import forums
 
-VERSION = "1.1.2"
+VERSION = "1.2.0"
 HOST, PORT = "127.0.0.1", 8765
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -186,23 +186,32 @@ def dispatch(op, data):
 
     if op == "scan-causelist-batch":
         try:
-            hits = court.scan_causelist_pdfs(
+            folder = data.get("list_folder") or ""
+            if folder:
+                folder = _under_home(_expand(folder))
+            hits, pdfs = court.scan_causelist_pdfs(
                 data.get("items") or [],
                 data.get("watched") or [],
                 data.get("tracked") or [],
+                date=str(data.get("date") or ""),
+                list_folder=folder,
             )
-            return {"ok": True, "hits": hits}
+            return {"ok": True, "hits": hits, "pdfs": pdfs}
         except Exception as e:
             return {"ok": False, "error": _err(e), "hits": []}
 
     if op == "scan-bhc-day":
         try:
+            folder = data.get("list_folder") or ""
+            if folder:
+                folder = _under_home(_expand(folder))
             out = court.scan_bhc_day(
                 str(data.get("date") or ""),
                 data.get("watched") or [],
                 data.get("tracked") or [],
+                list_folder=folder,
             )
-            return {"ok": True, "hits": out.get("hits") or [], "judges": out.get("judges") or 0}
+            return {"ok": True, "hits": out.get("hits") or [], "judges": out.get("judges") or 0, "pdfs": out.get("pdfs") or []}
         except Exception as e:
             return {"ok": False, "error": _err(e), "hits": [], "judges": 0}
 
@@ -358,6 +367,15 @@ def dispatch_fs(op, data):
             return {"ok": True}
         except Exception as e:
             return {"ok": False, "error": _err(e)}
+    if op == "open-url":
+        try:
+            url = str(data.get("url") or "")
+            if not re.match(r"^https://", url, re.I):
+                return {"ok": False, "error": "Only https links."}
+            subprocess.Popen(["open", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": _err(e)}
     if op == "save-pdf":
         try:
             folder = _under_home(_expand(data.get("folder") or ""))
@@ -367,14 +385,16 @@ def dispatch_fs(op, data):
                 return {"ok": False, "error": "Missing PDF."}
             os.makedirs(folder, exist_ok=True)
             dest = os.path.join(folder, filename)
-            if os.path.exists(dest):
+            existed = os.path.exists(dest)
+            overwrite = bool(data.get("overwrite"))
+            if existed and not overwrite:
                 return {"ok": True, "path": dest, "existed": True}
             raw = base64.b64decode(b64)
             if raw[:5] != b"%PDF-":
                 return {"ok": False, "error": "That file is not a PDF."}
             with open(dest, "wb") as f:
                 f.write(raw)
-            return {"ok": True, "path": dest, "existed": False}
+            return {"ok": True, "path": dest, "existed": existed}
         except Exception as e:
             return {"ok": False, "error": _err(e)}
     return {"ok": False, "error": "Unknown file action: %s" % op}

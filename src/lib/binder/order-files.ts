@@ -40,6 +40,16 @@ export function resolvedOrderFolder(
   return `${root}/${captionFolderName(m)}`;
 }
 
+export function resolvedListsRoot(settings: TrackerSettings, defaultRoot: string) {
+  const root = (settings.orderRoot || defaultRoot || "").trim().replace(/\/+$/, "");
+  return root ? `${root}/_lists` : "_lists";
+}
+
+export function listDayFolder(settings: TrackerSettings, defaultRoot: string, dateDdMm: string) {
+  const iso = (dateDdMm || "").replace(/^(\d{2})-(\d{2})-(\d{4})$/, "$3-$2-$1") || dateDdMm;
+  return `${resolvedListsRoot(settings, defaultRoot)}/${iso}`;
+}
+
 export function resolvedNamePattern(m: Matter, settings: TrackerSettings) {
   return (m.orderNamePattern || settings.orderNamePattern || DEFAULT_ORDER_PATTERN).trim();
 }

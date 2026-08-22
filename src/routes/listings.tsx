@@ -14,7 +14,7 @@ import { resolvedOrderFolder } from "@/lib/binder/order-files";
 import { runCauselistScan } from "@/lib/binder/scan";
 import { useBinder } from "@/lib/binder/store";
 import type { ListingRow } from "@/lib/types";
-import { deskFs, savePdfToFolder } from "@/lib/court/fs";
+import { deskFs, openExternal, openFolder, savePdfToFolder } from "@/lib/court/fs";
 import { downloadBlob, cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/listings")({ component: ListingsPage });
@@ -274,6 +274,13 @@ function ListingsPage() {
                         >
                           List
                         </a>
+                      ) : r.listPath ? (
+                        <MetroButton
+                          className="min-h-9 px-3 text-xs"
+                          onClick={() => void openFolder(r.listPath!)}
+                        >
+                          List PDF
+                        </MetroButton>
                       ) : (
                         <MetroButton
                           className="min-h-9 px-3 text-xs"
@@ -283,6 +290,11 @@ function ListingsPage() {
                           {pdfBusy ? "…" : "List PDF"}
                         </MetroButton>
                       )}
+                      {r.vc ? (
+                        <MetroButton className="min-h-9 px-3 text-xs" onClick={() => void openExternal(r.vc!)}>
+                          VC
+                        </MetroButton>
+                      ) : null}
                     </div>
                   </li>
                 );

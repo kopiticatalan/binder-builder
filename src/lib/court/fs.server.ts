@@ -10,7 +10,7 @@ export function fsInfo() {
   return {
     ok: true as const,
     fs: true as const,
-    version: "1.1.2",
+    version: "1.2.0",
     home,
     desktop,
     defaultRoot: join(desktop, "Bombay HC matters"),
@@ -34,6 +34,14 @@ function underHome(p: string) {
   return real;
 }
 
+export async function writePdfBytes(folder: string, filename: string, buf: Buffer) {
+  const dest = join(underHome(expandPath(folder)), String(filename || "list.pdf").replace(/[\\/]/g, ""));
+  if (buf.subarray(0, 5).toString("utf8") !== "%PDF-") throw new Error("That file is not a PDF.");
+  await mkdir(dirname(dest), { recursive: true });
+  await writeFile(dest, buf);
+  return dest;
+}
+
 export async function dispatchFs(op: string, data: Record<string, unknown>) {
   if (op === "choose-folder") {
     return { ok: true as const, path: fsInfo().defaultRoot };
@@ -48,11 +56,16 @@ export async function dispatchFs(op: string, data: Record<string, unknown>) {
     if (!b64) return { ok: false as const, error: "Missing PDF." };
     await mkdir(folder, { recursive: true });
     const dest = join(folder, filename);
+    const overwrite = Boolean(data.overwrite);
+    let existed = false;
     try {
       await access(dest, constants.F_OK);
-      return { ok: true as const, path: dest, existed: true };
+      existed = true;
     } catch {
       /* new file */
+    }
+    if (existed && !overwrite) {
+      return { ok: true as const, path: dest, existed: true };
     }
     const buf = Buffer.from(b64, "base64");
     if (buf.subarray(0, 5).toString("utf8") !== "%PDF-") {
@@ -60,7 +73,10 @@ export async function dispatchFs(op: string, data: Record<string, unknown>) {
     }
     await mkdir(dirname(dest), { recursive: true });
     await writeFile(dest, buf);
-    return { ok: true as const, path: dest, existed: false };
+    return { ok: true as const, path: dest, existed };
+  }
+  if (op === "open-url") {
+    return { ok: true as const };
   }
   return { ok: false as const, error: `Unknown file action: ${op}` };
 }

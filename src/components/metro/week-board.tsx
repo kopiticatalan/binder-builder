@@ -7,12 +7,14 @@ import { addDays, daysUntil, prettyCourtDay } from "@/lib/binder/dates";
 import { nextDate, partyCaption } from "@/lib/binder/docket";
 import { resolvedOrderFolder } from "@/lib/binder/order-files";
 import { ordersSavedMessage, pullMissingOrders, refreshMatter } from "@/lib/binder/orders";
+import { addConnectedCaseno, parseConnected } from "@/lib/binder/connected";
 import { useBinder } from "@/lib/binder/store";
 import { courtFailMessage } from "@/lib/court/local";
 import { resolveListing } from "@/lib/court/client";
-import { deskFs, openFolder, type DeskFs } from "@/lib/court/fs";
+import { deskFs, openExternal, openFolder, type DeskFs } from "@/lib/court/fs";
 import type { ListingRow } from "@/lib/types";
-import { canFetchCourt, cn } from "@/lib/utils";
+import { canFetchCourt, cn, matterCasenos } from "@/lib/utils";
+import { isTrackedCaseno } from "@/lib/court/match";
 
 type DayGroup = {
   key: string;
@@ -89,7 +91,7 @@ export function WeekBoard({ horizon = 5 }: { horizon?: number }) {
     const r = await refreshMatter(m);
     setBusyId("");
     if (!r.ok) setStatus(r.error, "err");
-    else setStatus(ordersSavedMessage(r.added, r.folder), "ok");
+    else setStatus(ordersSavedMessage(r.added, r.folder, true), "ok");
   }
 
   async function reveal(id: string) {
@@ -98,6 +100,22 @@ export function WeekBoard({ horizon = 5 }: { horizon?: number }) {
     const folder = resolvedOrderFolder(m, settings, desk?.defaultRoot || "~/Desktop/Bombay HC matters");
     const r = await openFolder(folder);
     if (!r?.ok) setStatus(r?.error || "Could not open that folder.", "err");
+  }
+
+  async function addConnected(parentId: string, caseno: string) {
+    const parent = matters.find((x) => x.id === parentId);
+    if (!parent) return;
+    setBusyId(`c|${parentId}|${caseno}`);
+    setStatus(`Adding ${caseno}…`, "busy");
+    try {
+      const r = await addConnectedCaseno(caseno, parent);
+      if (!r.ok) setStatus(r.error, "err");
+      else setStatus(`${caseno} added as its own file. Orders downloading.`, "ok");
+    } catch (e) {
+      setStatus(courtFailMessage(e), "err");
+    } finally {
+      setBusyId("");
+    }
   }
 
   return (
@@ -127,7 +145,8 @@ export function WeekBoard({ horizon = 5 }: { horizon?: number }) {
             </p>
             <ul className="divide-y divide-line border border-line">
               {mine.map((m) => {
-                const hit = listed.find((r) => r.mid === m.id);
+                const hit = listed.find((r) => r.mid === m.id) || listings.rows.find((r) => r.mid === m.id);
+                const connected = parseConnected(hit?.connected || m.connected);
                 return (
                   <li key={m.id} className="px-4 py-4">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-accent">My matter</p>
@@ -139,8 +158,17 @@ export function WeekBoard({ horizon = 5 }: { horizon?: number }) {
                       {hit?.court ? ` · Court ${hit.court}` : ""}
                       {hit?.judge ? ` · ${hit.judge}` : ""}
                       {hit?.serial ? ` · Sr. ${hit.serial}` : ""}
+                      {hit?.list_type ? ` · ${hit.list_type}` : ""}
                     </p>
+                    {connected.length ? (
+                      <p className="mt-2 text-xs text-muted">Connected {connected.join(", ")}</p>
+                    ) : null}
                     <div className="mt-3 flex flex-wrap gap-2">
+                      {desk?.fs ? (
+                        <MetroButton className="min-h-9 px-3 text-xs" onClick={() => void reveal(m.id)}>
+                          Open folder
+                        </MetroButton>
+                      ) : null}
                       <MetroButton className="min-h-9 px-3 text-xs" onClick={() => openMatter(m.id)}>
                         Open
                       </MetroButton>
@@ -153,12 +181,38 @@ export function WeekBoard({ horizon = 5 }: { horizon?: number }) {
                           {busyId === `up|${m.id}` ? "…" : "Update orders"}
                         </MetroButton>
                       ) : null}
-                      {desk?.fs ? (
-                        <MetroButton className="min-h-9 px-3 text-xs" onClick={() => void reveal(m.id)}>
-                          Folder
+                      {hit?.vc ? (
+                        <MetroButton className="min-h-9 px-3 text-xs" onClick={() => void openExternal(hit.vc!)}>
+                          VC
+                        </MetroButton>
+                      ) : null}
+                      {hit?.listPath && desk?.fs ? (
+                        <MetroButton
+                          className="min-h-9 px-3 text-xs"
+                          onClick={() => void openFolder(hit.listPath!)}
+                        >
+                          List PDF
                         </MetroButton>
                       ) : null}
                     </div>
+                    {connected.length ? (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {connected.map((cn) => {
+                          const already = matters.some((x) => isTrackedCaseno(cn, matterCasenos(x)));
+                          if (already) return null;
+                          return (
+                            <MetroButton
+                              key={cn}
+                              className="min-h-9 px-3 text-xs"
+                              disabled={busyId === `c|${m.id}|${cn}`}
+                              onClick={() => void addConnected(m.id, cn)}
+                            >
+                              {busyId === `c|${m.id}|${cn}` ? "…" : `Add ${cn}`}
+                            </MetroButton>
+                          );
+                        })}
+                      </div>
+                    ) : null}
                   </li>
                 );
               })}

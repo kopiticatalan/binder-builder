@@ -1,9 +1,10 @@
 export type Side = "1" | "2";
 export type StampReg = "R" | "S";
-export type Forum = "bhc" | "sat" | "nclt";
+export type CourtForum = "bhc" | "sat" | "nclt";
+export type Forum = CourtForum | "arb";
 
 export type LookupParams = {
-  forum?: Forum;
+  forum?: CourtForum;
   bench?: string;
   side: string;
   stampreg: StampReg;
@@ -100,8 +101,11 @@ export type ListingRow = {
   mid?: string | null;
   source?: Forum;
   href?: string;
+  vc?: string;
+  listFile?: string;
+  listPath?: string;
   add?: {
-    forum?: Forum;
+    forum?: CourtForum;
     abbr: string;
     stampreg: StampReg;
     no: string;
@@ -125,6 +129,10 @@ export type TrackerSettings = {
   notify: boolean;
   orderRoot: string;
   orderNamePattern: string;
+  autoScan: boolean;
+  scanEveryMin: number;
+  hearingTime: string;
+  remindDaysBefore: number;
 };
 
 export type ActivityEvent = {
@@ -213,4 +221,8 @@ export const DEFAULT_SETTINGS: TrackerSettings = {
   notify: true,
   orderRoot: "",
   orderNamePattern: DEFAULT_ORDER_PATTERN,
+  autoScan: true,
+  scanEveryMin: 30,
+  hearingTime: "10:30",
+  remindDaysBefore: 1,
 };

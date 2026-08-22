@@ -16,11 +16,14 @@ import { MetroButton } from "@/components/metro/controls";
 import { MatterCard } from "@/components/metro/matter-card";
 import { WeekBoard } from "@/components/metro/week-board";
 import { ACCENTS, ACCENT_LABELS, type AccentId } from "@/lib/binder/types";
-import { allOpenTasks, partyCaption } from "@/lib/binder/docket";
+import { allOpenTasks, downloadHearingsIcs, partyCaption } from "@/lib/binder/docket";
 import { daysUntil } from "@/lib/binder/dates";
 import { useCourt } from "@/lib/binder/court-store";
 import { runCauselistScan } from "@/lib/binder/scan";
 import { useBinder } from "@/lib/binder/store";
+import { resolvedListsRoot } from "@/lib/binder/order-files";
+import { BHC_DISPLAY_BOARD, BHC_VC_BOARD } from "@/lib/court/links";
+import { deskFs, openExternal, openFolder } from "@/lib/court/fs";
 import { cn, publicUrl } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({ component: StartHub });
@@ -74,7 +77,8 @@ function StartHub() {
         <section className="hub-pane">
           <h1 className="panorama-title">today</h1>
           <p className="mb-6 max-w-xl text-sm text-muted leading-relaxed text-pretty">
-            What is listed today, then the next five days. Add a case from the board into my matters. Scan for the rest.
+            What is listed today, then the next five days. Lists scan on their own while this is open. Display board
+            and VC board open in the browser.
           </p>
 
           <div className="mb-8 flex flex-wrap gap-2">
@@ -84,6 +88,45 @@ function StartHub() {
             <MetroButton onClick={() => void navigate({ to: "/fetch" })}>Add from court</MetroButton>
             <MetroButton onClick={() => void navigate({ to: "/matters" })}>My matters</MetroButton>
             <MetroButton onClick={() => void navigate({ to: "/listings" })}>All lists</MetroButton>
+            <MetroButton
+              onClick={() => {
+                void openExternal(BHC_DISPLAY_BOARD);
+              }}
+            >
+              Display board
+            </MetroButton>
+            <MetroButton
+              onClick={() => {
+                void openExternal(BHC_VC_BOARD);
+              }}
+            >
+              VC board
+            </MetroButton>
+            <MetroButton
+              onClick={() => {
+                try {
+                  const n = downloadHearingsIcs(matters);
+                  setStatus(`Exported ${n} reminder(s). Import into Calendar or Outlook — they sync to the phone.`, "ok");
+                } catch (e) {
+                  setStatus(e instanceof Error ? e.message : "Nothing to export.", "err");
+                }
+              }}
+            >
+              Calendar reminders
+            </MetroButton>
+            <MetroButton
+              onClick={async () => {
+                const desk = await deskFs();
+                if (!desk.fs) {
+                  setStatus("Lists folder is in the Mac app, next to your order folders.", "err");
+                  return;
+                }
+                const r = await openFolder(resolvedListsRoot(settings, desk.defaultRoot));
+                if (!r?.ok) setStatus(r?.error || "Could not open lists folder.", "err");
+              }}
+            >
+              Lists folder
+            </MetroButton>
           </div>
           {listings.generated_at ? (
             <p className="mb-6 text-xs text-muted">Last scan {listings.generated_at} · {listings.range_label}</p>

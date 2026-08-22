@@ -60,16 +60,29 @@ export async function chooseFolder(prompt: string) {
   return fsPost<{ ok: boolean; path?: string; error?: string }>("choose-folder", { prompt });
 }
 
-export async function savePdfToFolder(folder: string, filename: string, base64: string) {
+export async function savePdfToFolder(
+  folder: string,
+  filename: string,
+  base64: string,
+  opts?: { overwrite?: boolean },
+) {
   return fsPost<{ ok: boolean; path?: string; existed?: boolean; error?: string }>("save-pdf", {
     folder,
     filename,
     base64,
+    overwrite: Boolean(opts?.overwrite),
   });
 }
 
 export async function openFolder(path: string) {
   return fsPost<{ ok: boolean; error?: string }>("open-folder", { path });
+}
+
+export async function openExternal(url: string) {
+  const r = await fsPost<{ ok: boolean; error?: string }>("open-url", { url });
+  if (r?.ok) return r;
+  if (typeof window !== "undefined") window.open(url, "_blank", "noopener,noreferrer");
+  return { ok: true as const };
 }
 
 export function arrayBufferToBase64(buf: ArrayBuffer) {

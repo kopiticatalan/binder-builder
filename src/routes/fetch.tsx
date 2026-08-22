@@ -8,6 +8,7 @@ import { courtFailMessage } from "@/lib/court/local";
 import { matterFromLookup } from "@/lib/binder/court-map";
 import { useCourt } from "@/lib/binder/court-store";
 import { ordersSavedMessage, pullMissingOrders } from "@/lib/binder/orders";
+import { blankMatter } from "@/lib/binder/templates";
 import { useBinder } from "@/lib/binder/store";
 import type { CaseType, Forum, StampReg } from "@/lib/types";
 import { NCLT_BENCHES, NCLT_CASE_TYPES, SAT_APPEAL_TYPES } from "@/lib/types";
@@ -18,6 +19,7 @@ function FetchPage() {
   const navigate = useNavigate();
   const matters = useBinder((s) => s.matters);
   const upsertMatter = useBinder((s) => s.upsertMatter);
+  const setActive = useBinder((s) => s.setActive);
   const setStatus = useBinder((s) => s.setStatus);
   const status = useBinder((s) => s.status);
   const statusKind = useBinder((s) => s.statusKind);
@@ -31,10 +33,20 @@ function FetchPage() {
   const [caseType, setCaseType] = useState("");
   const [caseNo, setCaseNo] = useState("");
   const [year, setYear] = useState(String(new Date().getFullYear()));
+  const [claimant, setClaimant] = useState("");
+  const [respondent, setRespondent] = useState("");
+  const [institution, setInstitution] = useState("");
+  const [seat, setSeat] = useState("Mumbai");
+  const [tribunal, setTribunal] = useState("");
+  const [hearingDate, setHearingDate] = useState("");
   const [loadingTypes, setLoadingTypes] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    if (forum === "arb") {
+      setLoadingTypes(false);
+      return;
+    }
     if (forum === "sat") {
       setTypes([...SAT_APPEAL_TYPES]);
       setCaseType((cur) => cur || SAT_APPEAL_TYPES[0].value);
@@ -74,6 +86,34 @@ function FetchPage() {
   }, [side, forum, setStatus]);
 
   async function onSave() {
+    if (forum === "arb") {
+      if (!claimant.trim() && !respondent.trim()) {
+        setStatus("Enter the parties.", "err");
+        return;
+      }
+      const matter = blankMatter();
+      matter.forum = "arb";
+      matter.petitioner = claimant.trim();
+      matter.respondent = respondent.trim();
+      matter.caseNo = caseNo.trim();
+      matter.year = year.trim();
+      matter.institution = institution.trim();
+      matter.tribunal = tribunal.trim();
+      matter.seat = seat.trim();
+      matter.typeName = "Arbitration";
+      matter.benchLabel = tribunal.trim();
+      matter.sideLabel = seat.trim() || "Arbitration";
+      matter.config.court = [institution.trim(), seat.trim()].filter(Boolean).join(" · ") || "Arbitration";
+      matter.config.caseNumber = [institution.trim(), caseNo.trim(), year.trim()].filter(Boolean).join(" ");
+      matter.config.hearingDate = hearingDate;
+      matter.name = `${matter.petitioner} v ${matter.respondent}`.replace(/^ v | v$/g, "") || "Arbitration";
+      upsertMatter(matter);
+      setActive(matter.id);
+      log("add", matter.name, "Arbitration");
+      setStatus("Arbitration file saved.", "ok");
+      void navigate({ to: "/docket" });
+      return;
+    }
     const type =
       types.find((t) => t.value === caseType) ||
       SAT_APPEAL_TYPES.find((t) => t.value === caseType) ||
@@ -124,8 +164,8 @@ function FetchPage() {
   return (
     <PageShell title="add from court" backTo="/" backLabel="home">
       <p className="mb-6 max-w-xl text-sm text-muted leading-relaxed text-pretty">
-        Look up Bombay High Court, SAT or NCLT. Parties, next date and orders come in. PDFs go into that matter’s
-        folder.
+        Look up Bombay High Court, SAT or NCLT. Or add an arbitration — there is no court website to scrape, so that
+        file is yours to keep.
       </p>
       {status && statusKind !== "idle" ? (
         <p
@@ -147,10 +187,11 @@ function FetchPage() {
             { id: "bhc", label: "High Court" },
             { id: "sat", label: "SAT" },
             { id: "nclt", label: "NCLT" },
+            { id: "arb", label: "Arbitration" },
           ]}
           value={forum}
           onChange={(id) => {
-            setForum(id);
+            setForum(id as Forum);
             setCaseType("");
           }}
         />
@@ -161,7 +202,9 @@ function FetchPage() {
           ? "SEBI, IRDAI or PFRDA appeal as it appears on the SAT cause list. Records come from sat.gov.in."
           : forum === "nclt"
             ? "NCLT case number as published. Mumbai is selected by default. Records come from the e-filing portal."
-            : "Case types load from bombayhighcourt.gov.in after you pick Original or Appellate Side."}
+            : forum === "arb"
+              ? "No scrape. Seat, institution and tribunal stay on this file. Next date is yours to type."
+              : "Case types load from bombayhighcourt.gov.in after you pick Original or Appellate Side."}
       </p>
 
       <div className="mb-8 grid max-w-3xl gap-4 sm:grid-cols-2">
@@ -239,7 +282,7 @@ function FetchPage() {
               />
             </Field>
           </>
-        ) : (
+        ) : forum === "nclt" ? (
           <>
             <Field label="Bench">
               <MetroSelect value={bench} onChange={(e) => setBench(e.target.value)}>
@@ -276,11 +319,38 @@ function FetchPage() {
               />
             </Field>
           </>
+        ) : (
+          <>
+            <Field label="Claimant">
+              <MetroInput value={claimant} onChange={(e) => setClaimant(e.target.value)} />
+            </Field>
+            <Field label="Respondent">
+              <MetroInput value={respondent} onChange={(e) => setRespondent(e.target.value)} />
+            </Field>
+            <Field label="Institution">
+              <MetroInput placeholder="MCIA / SIAC / ad hoc" value={institution} onChange={(e) => setInstitution(e.target.value)} />
+            </Field>
+            <Field label="Seat">
+              <MetroInput value={seat} onChange={(e) => setSeat(e.target.value)} />
+            </Field>
+            <Field label="Tribunal">
+              <MetroInput placeholder="Arbitrator(s)" value={tribunal} onChange={(e) => setTribunal(e.target.value)} />
+            </Field>
+            <Field label="Reference no.">
+              <MetroInput value={caseNo} onChange={(e) => setCaseNo(e.target.value)} />
+            </Field>
+            <Field label="Year">
+              <MetroInput inputMode="numeric" maxLength={4} value={year} onChange={(e) => setYear(e.target.value)} />
+            </Field>
+            <Field label="Your next date">
+              <MetroInput type="date" value={hearingDate} onChange={(e) => setHearingDate(e.target.value)} />
+            </Field>
+          </>
         )}
       </div>
 
       <MetroButton variant="accent" disabled={saving} onClick={() => void onSave()}>
-        {saving ? "Finding…" : "Find and save"}
+        {saving ? "Finding…" : forum === "arb" ? "Save arbitration" : "Find and save"}
       </MetroButton>
       <p className="mt-4 max-w-xl text-xs text-muted leading-relaxed">
         Existing notes, tasks and binder papers are kept if you add the same case again. Use the Mac

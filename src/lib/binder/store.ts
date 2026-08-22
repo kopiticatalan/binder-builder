@@ -42,6 +42,11 @@ type DocketPatch = Partial<
     | "tags"
     | "orderFolder"
     | "orderNamePattern"
+    | "parentId"
+    | "connected"
+    | "tribunal"
+    | "seat"
+    | "institution"
   >
 >;
 

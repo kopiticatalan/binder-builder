@@ -7,9 +7,10 @@ import { matterFromLookup, lookupParamsOf } from "./court-map";
 import { filenameForOrder, resolvedOrderFolder } from "./order-files";
 import { useBinder } from "./store";
 import { useCourt } from "./court-store";
+import { markCommonOrders } from "./connected";
 import { blankDoc } from "./types";
 import type { Matter } from "./types";
-import { newId } from "@/lib/utils";
+import { canFetchCourt, newId } from "@/lib/utils";
 
 function b64ToBuf(base64: string) {
   const binary = atob(base64);
@@ -21,6 +22,7 @@ function b64ToBuf(base64: string) {
 async function writeOrderToDisk(
   matter: Matter,
   file: { key: string; filename: string; base64: string },
+  overwrite = false,
 ) {
   const desk = await deskFs();
   if (!desk.fs) return "";
@@ -28,7 +30,7 @@ async function writeOrderToDisk(
   const folder = resolvedOrderFolder(matter, settings, desk.defaultRoot);
   const order = matter.orders.find((o) => o.key === file.key);
   const filename = order ? filenameForOrder(matter, order, settings) : file.filename;
-  const out = await savePdfToFolder(folder, filename, file.base64);
+  const out = await savePdfToFolder(folder, filename, file.base64, { overwrite });
   if (!out?.ok) return "";
   return out.path || "";
 }
@@ -36,6 +38,7 @@ async function writeOrderToDisk(
 async function ingestOrderFile(
   matter: Matter,
   file: { key: string; filename: string; base64: string; excerpt?: string },
+  overwrite = false,
 ) {
   const stored = b64ToBuf(file.base64);
   let pageCount = 1;
@@ -48,7 +51,7 @@ async function ingestOrderFile(
   const existing = matter.orders.find((o) => o.key === file.key);
   const docId = existing?.docId || newId();
   const already = matter.docs.some((d) => d.id === docId);
-  const diskPath = await writeOrderToDisk(matter, file);
+  const diskPath = await writeOrderToDisk(matter, file, overwrite);
   const settings = useCourt.getState().settings;
   const named = existing ? filenameForOrder(matter, existing, settings) : file.filename;
   const doc = blankDoc({
@@ -111,14 +114,18 @@ export async function saveOrderBytesToFolder(
   return { ok: true as const, path: out.path || folder, existed: out.existed };
 }
 
-export async function pullMissingOrders(matter: Matter, keys?: string[]) {
-  const want = keys ?? matter.orders.filter((o) => o.key && !o.downloaded).map((o) => o.key!);
+export async function pullOrders(matter: Matter, opts?: { keys?: string[]; replace?: boolean }) {
+  const replace = Boolean(opts?.replace);
+  const want =
+    opts?.keys ??
+    matter.orders.filter((o) => o.key && (replace || !o.downloaded)).map((o) => o.key!);
   if (!want.length) {
     const desk = await deskFs();
     const settings = useCourt.getState().settings;
     return {
       added: 0,
       folder: desk.fs ? resolvedOrderFolder(matter, settings, desk.defaultRoot) : "",
+      replaced: replace,
     };
   }
   let added = 0;
@@ -146,7 +153,7 @@ export async function pullMissingOrders(matter: Matter, keys?: string[]) {
     }
     for (const f of res.files) {
       current = useBinder.getState().matters.find((m) => m.id === matter.id) ?? current;
-      await ingestOrderFile(current, f);
+      await ingestOrderFile(current, f, replace);
       added += 1;
     }
   }
@@ -154,16 +161,35 @@ export async function pullMissingOrders(matter: Matter, keys?: string[]) {
   const desk = await deskFs();
   const settings = useCourt.getState().settings;
   const folder = desk.fs ? resolvedOrderFolder(current, settings, desk.defaultRoot) : "";
-  return { added, folder };
+  return { added, folder, replaced: replace };
 }
 
-export function ordersSavedMessage(added: number, folder?: string) {
+export async function pullMissingOrders(matter: Matter, keys?: string[]) {
+  return pullOrders(matter, { keys, replace: false });
+}
+
+export async function pullAllOrders(matter: Matter) {
+  return pullOrders(matter, { replace: true });
+}
+
+export function ordersSavedMessage(added: number, folder?: string, replaced?: boolean) {
+  if (replaced) {
+    if (!added) {
+      return folder ? `Court record has no order PDFs. Folder: ${folder}` : "Court record has no order PDFs.";
+    }
+    if (folder) return `${added} order(s) written to ${folder}.`;
+    return `${added} order(s) refreshed in the binder.`;
+  }
   if (!added) return folder ? `No new orders. Folder: ${folder}` : "No new orders.";
   if (folder) return `${added} order(s) saved to ${folder}.`;
   return `${added} order(s) saved in the binder.`;
 }
 
-export async function refreshMatter(matter: Matter) {
+export async function refreshMatter(matter: Matter, seen = new Set<string>()) {
+  if (seen.has(matter.id)) {
+    return { ok: true as const, added: 0, folder: "", matter, replaced: true as const };
+  }
+  seen.add(matter.id);
   const params = lookupParamsOf(matter);
   if (!params.case_type || !params.case_no || !params.year) {
     return { ok: false as const, error: "This matter has no court lookup yet. Add it from the court site first." };
@@ -183,9 +209,21 @@ export async function refreshMatter(matter: Matter) {
   const live = useBinder.getState().matters.find((m) => m.id === matter.id) ?? matter;
   const next = matterFromLookup(params, res.lookup, live);
   useBinder.getState().upsertMatter(next);
-  const missing = next.orders.filter((o) => o.key && !o.downloaded).map((o) => o.key!);
-  const pulled = await pullMissingOrders(next, missing);
-  useCourt.getState().log("refresh", `${next.petitioner} v ${next.respondent}`, `${pulled.added} new order(s)`);
+  const pulled = await pullAllOrders(next);
+  const kids = useBinder
+    .getState()
+    .matters.filter((x) => x.parentId === next.id && x.id !== next.id && canFetchCourt(x));
+  for (const k of kids) {
+    await refreshMatter(k, seen);
+  }
+  markCommonOrders([next.id, ...kids.map((k) => k.id)]);
+  useCourt.getState().log("refresh", `${next.petitioner} v ${next.respondent}`, `${pulled.added} order(s)`);
   useCourt.getState().reannotate(useBinder.getState().matters);
-  return { ok: true as const, added: pulled.added, folder: pulled.folder, matter: next };
+  return {
+    ok: true as const,
+    added: pulled.added,
+    folder: pulled.folder,
+    matter: next,
+    replaced: true as const,
+  };
 }

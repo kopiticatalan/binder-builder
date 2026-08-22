@@ -44,6 +44,7 @@ function MattersPage() {
         if (term && !hay.includes(term)) return false;
         if (forum === "sat" && forumOf(m) !== "sat") return false;
         if (forum === "nclt" && forumOf(m) !== "nclt") return false;
+        if (forum === "arb" && forumOf(m) !== "arb") return false;
         if (forum === "bhc" && forumOf(m) !== "bhc") return false;
         if (forum === "2" && (forumOf(m) !== "bhc" || m.side !== "2")) return false;
         if (forum === "1" && (forumOf(m) !== "bhc" || m.side !== "1")) return false;
@@ -77,7 +78,7 @@ function MattersPage() {
       if (r.ok) added += r.added;
     }
     setBusyAll(false);
-    setStatus(ordersSavedMessage(added, undefined), "ok");
+    setStatus(ordersSavedMessage(added, undefined, true), "ok");
   }
 
   return (
@@ -131,6 +132,7 @@ function MattersPage() {
             <option value="bhc">Bombay High Court</option>
             <option value="sat">SAT</option>
             <option value="nclt">NCLT</option>
+            <option value="arb">Arbitration</option>
             <option value="2">Original Side</option>
             <option value="1">Appellate Side</option>
           </MetroSelect>

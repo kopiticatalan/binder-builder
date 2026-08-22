@@ -123,12 +123,14 @@ export async function dispatchCourt(op: string, data: Record<string, unknown>) {
         const items = Array.isArray(data.items)
           ? (data.items as { href: string; judge: string; list_type: string }[])
           : [];
-        const hits = await scanCauselistPdfs({
+        const hitsOut = await scanCauselistPdfs({
           items,
           watched: Array.isArray(data.watched) ? data.watched.map(String) : [],
           tracked: Array.isArray(data.tracked) ? data.tracked.map(String) : [],
+          date: String(data.date || ""),
+          list_folder: data.list_folder ? String(data.list_folder) : undefined,
         });
-        return { ok: true as const, hits };
+        return { ok: true as const, hits: hitsOut.hits, pdfs: hitsOut.pdfs };
       } catch (e) {
         return fail(e, { hits: [] });
       }
@@ -140,8 +142,9 @@ export async function dispatchCourt(op: string, data: Record<string, unknown>) {
           date: String(data.date || ""),
           watched: Array.isArray(data.watched) ? data.watched.map(String) : [],
           tracked: Array.isArray(data.tracked) ? data.tracked.map(String) : [],
+          list_folder: data.list_folder ? String(data.list_folder) : undefined,
         });
-        return { ok: true as const, hits: out.hits, judges: out.judges };
+        return { ok: true as const, hits: out.hits, judges: out.judges, pdfs: out.pdfs };
       } catch (e) {
         return fail(e, { hits: [], judges: 0 });
       }

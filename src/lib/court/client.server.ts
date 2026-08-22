@@ -1,5 +1,5 @@
 import type { CaseType, CourtLookup, LookupParams, StampReg } from "@/lib/types";
-import { buildFirmPatterns, isTrackedCaseno, parseCauselistEntries } from "@/lib/court/match";
+import { buildFirmPatterns, extractVcUrl, isTrackedCaseno, listPdfFilename, parseCauselistEntries } from "@/lib/court/match";
 import {
   CookieJar,
   COURT_SITE,
@@ -17,6 +17,7 @@ import {
   type OrderWithHref,
 } from "@/lib/court/parse.server";
 import { excerptText, pdfText } from "@/lib/court/pdf-text.server";
+import { writePdfBytes } from "@/lib/court/fs.server";
 
 export type { LookupParams };
 
@@ -211,6 +212,18 @@ export type ScanHit = {
   judge: string;
   list_type: string;
   court: string;
+  vc?: string;
+  listFile?: string;
+  listPath?: string;
+};
+
+export type SavedListPdf = {
+  filename: string;
+  path: string;
+  judge: string;
+  list_type: string;
+  court: string;
+  vc: string;
 };
 
 export async function scanCauselistPdfs(
@@ -218,14 +231,17 @@ export async function scanCauselistPdfs(
     items: { href: string; judge: string; list_type: string }[];
     watched: string[];
     tracked: string[];
+    date?: string;
+    list_folder?: string;
   },
   jar?: CookieJar,
-): Promise<ScanHit[]> {
+): Promise<{ hits: ScanHit[]; pdfs: SavedListPdf[] }> {
   const pats = buildFirmPatterns(input.watched);
   const session = jar ?? new CookieJar();
   if (!jar) await courtGet(`${COURT_SITE}/bhc/causelistFinal`, session);
 
   const hits: ScanHit[] = [];
+  const pdfs: SavedListPdf[] = [];
   const results = await mapPool(input.items, 4, async (item) => {
     try {
       const res = await courtRequest(item.href, {
@@ -236,9 +252,16 @@ export async function scanCauselistPdfs(
           Referer: `${COURT_SITE}/bhc/causelistFinal`,
         },
       });
-      if (!isPdf(res.buf)) return [] as ScanHit[];
+      if (!isPdf(res.buf)) return { hits: [] as ScanHit[], pdf: null as SavedListPdf | null };
       const text = pdfText(res.buf);
       const court = (text.match(/COURT\s*NO[.\s]*?(\d+)/i) || [])[1] || "";
+      const vc = extractVcUrl(text);
+      const filename = listPdfFilename({
+        date: input.date || "",
+        court,
+        judge: item.judge,
+        list_type: item.list_type,
+      });
       const entries = parseCauselistEntries(text, pats);
       const foldedAdvs: Record<string, string[]> = {};
       for (const e of entries) {
@@ -247,13 +270,15 @@ export async function scanCauselistPdfs(
         for (const ad of e.advocates) if (!bucket.includes(ad)) bucket.push(ad);
       }
       const out: ScanHit[] = [];
+      let hasTracked = false;
       for (const e of entries) {
-        if (e.folded) continue;
+        const mine = isTrackedCaseno(e.caseno, input.tracked);
+        if (mine) hasTracked = true;
+        if (e.folded && !mine) continue;
         const advs = [...e.advocates];
         for (const ad of foldedAdvs[e.serial] || []) {
           if (!advs.includes(ad)) advs.push(ad);
         }
-        const mine = isTrackedCaseno(e.caseno, input.tracked);
         if (!mine && !advs.length) continue;
         out.push({
           serial: e.serial,
@@ -265,33 +290,55 @@ export async function scanCauselistPdfs(
           judge: item.judge,
           list_type: item.list_type,
           court,
+          vc,
+          listFile: filename,
         });
       }
-      return out;
+      let pdf: SavedListPdf | null = null;
+      if (hasTracked && input.list_folder) {
+        try {
+          const path = await writePdfBytes(input.list_folder, filename, res.buf);
+          pdf = { filename, path, judge: item.judge, list_type: item.list_type, court, vc };
+          for (const h of out) h.listPath = path;
+        } catch {
+          /* still return hits */
+        }
+      }
+      return { hits: out, pdf };
     } catch {
-      return [] as ScanHit[];
+      return { hits: [] as ScanHit[], pdf: null as SavedListPdf | null };
     }
   });
-  for (const group of results) hits.push(...group);
-  return hits;
+  for (const group of results) {
+    hits.push(...group.hits);
+    if (group.pdf) pdfs.push(group.pdf);
+  }
+  return { hits, pdfs };
 }
 
 export async function scanBhcDay(input: {
   date: string;
   watched: string[];
   tracked: string[];
-}): Promise<{ judges: number; hits: ScanHit[] }> {
+  list_folder?: string;
+}): Promise<{ judges: number; hits: ScanHit[]; pdfs: SavedListPdf[] }> {
   const jar = new CookieJar();
   const judges = await listCauselistDayWithJar(input.date, jar);
   const items = judges.flatMap((j) =>
     j.links.map((l) => ({ href: l.href, judge: j.judge, list_type: l.label })),
   );
-  if (!items.length) return { judges: 0, hits: [] };
-  const hits = await scanCauselistPdfs(
-    { items, watched: input.watched, tracked: input.tracked },
+  if (!items.length) return { judges: 0, hits: [], pdfs: [] };
+  const scanned = await scanCauselistPdfs(
+    {
+      items,
+      watched: input.watched,
+      tracked: input.tracked,
+      date: input.date,
+      list_folder: input.list_folder,
+    },
     jar,
   );
-  return { judges: judges.length, hits };
+  return { judges: judges.length, hits: scanned.hits, pdfs: scanned.pdfs };
 }
 
 export async function fetchCauselistPdf(input: {

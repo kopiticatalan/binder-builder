@@ -185,6 +185,23 @@ export function parseCauselistEntries(
   return entries;
 }
 
+export function extractVcUrl(text: string): string {
+  const raw = text.match(/https?:\/\/[^\s<>"'\)\]\\]+/gi) || [];
+  const urls = raw.map((u) => u.replace(/[.,;:]+$/g, "").replace(/\\+$/g, ""));
+  const hint = /vconsol|zoom\.us|meet\.google|teams\.microsoft|webex|\bvc\.|video.?conf|hcbombay/i;
+  return urls.find((u) => hint.test(u)) || urls[0] || "";
+}
+
+export function listPdfFilename(input: { date: string; court: string; judge: string; list_type: string }) {
+  const parts = [
+    (input.date || "").replace(/-/g, ""),
+    input.court ? `Court ${input.court}` : "",
+    input.list_type,
+    input.judge,
+  ].filter(Boolean);
+  return `${parts.join(" ").replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " ").trim().slice(0, 110)}.pdf`;
+}
+
 function escapeRe(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

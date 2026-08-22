@@ -40,7 +40,9 @@ export function MatterCard({ matter, dense = false }: { matter: Matter; dense?: 
           ? matter.benchLabel
             ? `NCLT · ${matter.benchLabel}`
             : "NCLT"
-          : matter.config.court || "Manual";
+          : forumOf(matter) === "arb"
+            ? [matter.institution, matter.seat, "Arbitration"].filter(Boolean)[0]
+            : matter.config.court || "Manual";
 
   function open(to: "/docket" | "/binder" | "/hearing") {
     setActive(matter.id);
@@ -54,7 +56,7 @@ export function MatterCard({ matter, dense = false }: { matter: Matter; dense?: 
     const r = await refreshMatter(matter);
     setBusy(false);
     if (!r.ok) setStatus(r.error, "err");
-    else setStatus(ordersSavedMessage(r.added, r.folder), "ok");
+    else setStatus(ordersSavedMessage(r.added, r.folder, true), "ok");
   }
 
   async function revealFolder() {
@@ -64,15 +66,22 @@ export function MatterCard({ matter, dense = false }: { matter: Matter; dense?: 
 
   return (
     <article className={cn("border border-line", dense ? "px-4 py-4" : "px-4 py-5")}>
-      <button type="button" className="w-full text-left" onClick={() => open("/docket")}>
-        <p className="font-display text-2xl font-light leading-none text-pretty">{partyCaption(matter)}</p>
-        <p className="mt-2 text-xs text-muted">
-          {caseLabel(matter) || matter.config.caseNumber || "No case number"}
-          {` · ${forum}`}
-          {matter.stage ? ` · ${matter.stage}` : ""}
-          {matter.courtStatus || matter.status ? ` · ${matter.courtStatus || matter.status}` : ""}
-        </p>
-      </button>
+      <div className="flex items-start justify-between gap-3">
+        <button type="button" className="min-w-0 flex-1 text-left" onClick={() => open("/docket")}>
+          <p className="font-display text-2xl font-light leading-none text-pretty">{partyCaption(matter)}</p>
+          <p className="mt-2 text-xs text-muted">
+            {caseLabel(matter) || matter.config.caseNumber || "No case number"}
+            {` · ${forum}`}
+            {matter.stage ? ` · ${matter.stage}` : ""}
+            {matter.courtStatus || matter.status ? ` · ${matter.courtStatus || matter.status}` : ""}
+          </p>
+        </button>
+        {desk?.fs ? (
+          <MetroButton className="min-h-9 shrink-0 px-3 text-xs" onClick={() => void revealFolder()}>
+            Open folder
+          </MetroButton>
+        ) : null}
+      </div>
 
       <div className={cn("mt-4 grid gap-3 text-sm", dense ? "sm:grid-cols-2" : "sm:grid-cols-3")}>
         <div>
@@ -117,11 +126,6 @@ export function MatterCard({ matter, dense = false }: { matter: Matter; dense?: 
         {canFetchCourt(matter) ? (
           <MetroButton className="min-h-9 px-3 text-xs" disabled={busy} onClick={() => void updateOrders()}>
             {busy ? "Updating…" : "Update orders"}
-          </MetroButton>
-        ) : null}
-        {desk?.fs ? (
-          <MetroButton className="min-h-9 px-3 text-xs" onClick={() => void revealFolder()}>
-            Folder
           </MetroButton>
         ) : null}
         <MetroButton className="min-h-9 px-3 text-xs" onClick={() => open("/binder")}>

@@ -87,10 +87,10 @@ export const useCourt = create<CourtState>()(
         const prev = get().listings.rows;
         const map = new Map<string, ListingRow>();
         for (const r of prev) {
-          map.set([r.date_full, r.judge, r.court, r.serial, r.number].join("|"), r);
+          map.set([r.date_full, r.judge, r.court, r.serial, r.number, r.list_type].join("|"), r);
         }
         for (const r of rows) {
-          map.set([r.date_full, r.judge, r.court, r.serial, r.number].join("|"), r);
+          map.set([r.date_full, r.judge, r.court, r.serial, r.number, r.list_type].join("|"), r);
         }
         const merged = annotateListings([...map.values()], matters).sort((a, b) => {
           const da = Date.parse(a.date_full) || 0;

@@ -477,6 +477,11 @@ export function emptyDocket(): Pick<
   | "courtLastDate"
   | "orderFolder"
   | "orderNamePattern"
+  | "parentId"
+  | "connected"
+  | "tribunal"
+  | "seat"
+  | "institution"
 > {
   return {
     petitioner: "",
@@ -518,6 +523,11 @@ export function emptyDocket(): Pick<
     courtLastDate: "",
     orderFolder: "",
     orderNamePattern: "",
+    parentId: "",
+    connected: "",
+    tribunal: "",
+    seat: "",
+    institution: "",
   };
 }
 

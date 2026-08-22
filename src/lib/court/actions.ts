@@ -147,8 +147,8 @@ export const scanCauselistBatch = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     try {
       const { scanCauselistPdfs } = await import("./client.server");
-      const hits = await scanCauselistPdfs(data);
-      return { ok: true as const, hits };
+      const out = await scanCauselistPdfs(data);
+      return { ok: true as const, hits: out.hits, pdfs: out.pdfs };
     } catch (e) {
       return {
         ok: false as const,
@@ -164,13 +164,14 @@ export const scanBhcDay = createServerFn({ method: "POST" })
       date: z.string(),
       watched: z.array(z.string()),
       tracked: z.array(z.string()),
+      list_folder: z.string().optional(),
     }),
   )
   .handler(async ({ data }) => {
     try {
       const { scanBhcDay: run } = await import("./client.server");
       const out = await run(data);
-      return { ok: true as const, hits: out.hits, judges: out.judges };
+      return { ok: true as const, hits: out.hits, judges: out.judges, pdfs: out.pdfs };
     } catch (e) {
       return {
         ok: false as const,

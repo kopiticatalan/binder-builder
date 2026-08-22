@@ -148,7 +148,7 @@ function SettingsPage() {
 
       <section className="mb-10 max-w-xl">
         <p className="label-caps mb-3">Cause lists</p>
-        <Field label="Scan horizon" hint="Days ahead to include when you tap Scan.">
+        <Field label="Scan horizon" hint="Days ahead to include. Auto-scan uses this too.">
           <MetroSelect
             className="max-w-40"
             value={String(settings.scan_days)}
@@ -161,6 +161,60 @@ function SettingsPage() {
             ))}
           </MetroSelect>
         </Field>
+        <div className="mt-4">
+          <MetroCheck
+            checked={settings.autoScan}
+            onChange={(v) => setSettings({ autoScan: v })}
+            label="Scan automatically while the app is open"
+          />
+        </div>
+        <p className="mt-2 mb-4 text-sm text-muted leading-relaxed">
+          On open, then every so often, so late boards and supplementary lists come in without tapping Scan. Leave the
+          app running overnight if you want the late-night drop.
+        </p>
+        <Field label="Every">
+          <MetroSelect
+            className="max-w-40"
+            value={String(settings.scanEveryMin)}
+            onChange={(e) => setSettings({ scanEveryMin: Number(e.target.value) })}
+          >
+            {[15, 30, 45, 60, 90].map((n) => (
+              <option key={n} value={n}>
+                {n} minutes
+              </option>
+            ))}
+          </MetroSelect>
+        </Field>
+      </section>
+
+      <section className="mb-10 max-w-xl">
+        <p className="label-caps mb-3">Reminders</p>
+        <p className="mb-4 text-sm text-muted leading-relaxed">
+          Calendar reminders is an .ics file. Import into Apple Calendar or Outlook — those sync to the phone. Each
+          hearing is at the sitting time below, with a ping the day before and the morning of.
+        </p>
+        <Field label="Sitting time">
+          <MetroInput
+            type="time"
+            className="max-w-40"
+            value={settings.hearingTime || "10:30"}
+            onChange={(e) => setSettings({ hearingTime: e.target.value })}
+          />
+        </Field>
+        <div className="mt-4">
+          <Field label="Warn me">
+            <MetroSelect
+              className="max-w-40"
+              value={String(settings.remindDaysBefore ?? 1)}
+              onChange={(e) => setSettings({ remindDaysBefore: Number(e.target.value) })}
+            >
+              <option value="1">1 day before</option>
+              <option value="2">2 days before</option>
+              <option value="3">3 days before</option>
+              <option value="7">1 week before</option>
+            </MetroSelect>
+          </Field>
+        </div>
       </section>
 
       <section className="mb-10 max-w-xl">

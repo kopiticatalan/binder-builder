@@ -14,12 +14,13 @@ The public web page is a static preview. Bombay High Court / SAT / NCLT lookup, 
 
 ## How it is laid out
 
-- **Today** — first screen. Matters listed today, then the next five days. Add a listed case into my matters from there.
-- **My matters** — every case on this device. One tap updates the folder with orders, opens the file in the app, or reveals it in Finder. Parties, case number, your next date, court website date, last date, and folder path are all on the card.
-- **Lists** — scanned cause lists. My matters always flag even if the firm name is not on the board. Firms we watch is a one-line editor (defaults: Bharucha & Partners, Advani & Co., Advani Law LLP).
-- **Add from court** — live lookup on Bombay High Court, SAT and NCLT (parties, next date, orders).
-- **Add by hand** — blank matter when the website has nothing.
+- **Today** — first screen. Matters listed today, then the next five days. Add a listed case into my matters from there. Display board and VC board are one tap. Lists scan on their own while the Mac app is open (late boards and supplementary lists included).
+- **My matters** — every case on this device. One tap updates the folder with orders (re-downloads the whole court record and overwrites the PDFs), opens the file in the app, or reveals it in Finder.
+- **Lists** — scanned cause lists. PDFs for boards that have your matters land in `_lists` next to the order folders. VC links from the list, if any, sit on the row. My matters always flag even if the firm name is not on the board.
+- **Add from court** — live lookup on Bombay High Court, SAT and NCLT. Arbitration is a fourth tab — no scrape, just the file.
+- **Connected IAs** — shown on the listing. Add as its own file when orders are separate; update the parent to pull them all. Orders that share a date and title are marked Common.
 - **Binder** — papers for a hearing, captioned from this matter, or a loose compilation you title yourself.
+- **Calendar reminders** — .ics with sitting time (default 10:30 IST), a ping the day before and the morning of. Import into Apple Calendar or Outlook; those sync to the phone.
 
 ## Dates
 

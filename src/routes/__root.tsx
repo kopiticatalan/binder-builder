@@ -39,13 +39,22 @@ export const Route = createRootRoute({
 
 function RootShell() {
   const hydrate = useBinder((s) => s.hydrate);
+  const ready = useBinder((s) => s.ready);
   const accent = useBinder((s) => s.accent);
+  const courtHydrated = useCourt((s) => s.hydrated);
   useEffect(() => {
     void hydrate();
     void Promise.resolve(useCourt.persist.rehydrate()).then(() => {
       useCourt.getState().setHydrated();
     });
   }, [hydrate]);
+  useEffect(() => {
+    if (!ready || !courtHydrated) return;
+    void import("@/lib/binder/autoscan").then((m) => m.startAutoScan());
+    return () => {
+      void import("@/lib/binder/autoscan").then((m) => m.stopAutoScan());
+    };
+  }, [ready, courtHydrated]);
 
   return (
     <html lang="en" suppressHydrationWarning className="antialiased">

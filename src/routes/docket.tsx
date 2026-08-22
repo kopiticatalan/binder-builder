@@ -13,13 +13,15 @@ import {
   resolvedNamePattern,
   resolvedOrderFolder,
 } from "@/lib/binder/order-files";
-import { ordersSavedMessage, pullMissingOrders, refreshMatter, saveOrderBytesToFolder } from "@/lib/binder/orders";
+import { ordersSavedMessage, pullAllOrders, refreshMatter, saveOrderBytesToFolder } from "@/lib/binder/orders";
+import { addConnectedCaseno, parseConnected } from "@/lib/binder/connected";
 import { useCourt } from "@/lib/binder/court-store";
 import { useBinder } from "@/lib/binder/store";
 import { draftHearingBrief } from "@/lib/court/actions";
 import { chooseFolder, deskFs, openFolder, type DeskFs } from "@/lib/court/fs";
 import type { MatterStatus, OrderMeta } from "@/lib/binder/types";
-import { canFetchCourt, caseLabel, cn, downloadBlob, forumOf } from "@/lib/utils";
+import { canFetchCourt, caseLabel, cn, downloadBlob, forumOf, matterCasenos } from "@/lib/utils";
+import { isTrackedCaseno } from "@/lib/court/match";
 
 export const Route = createFileRoute("/docket")({ component: DocketPage });
 
@@ -28,6 +30,7 @@ function DocketPage() {
   const ready = useBinder((s) => s.ready);
   const matter = useBinder((s) => s.active());
   const newMatter = useBinder((s) => s.newMatter);
+  const setActive = useBinder((s) => s.setActive);
   const patchDocket = useBinder((s) => s.patchDocket);
   const patchConfig = useBinder((s) => s.patchConfig);
   const stampCaptionFromDocket = useBinder((s) => s.stampCaptionFromDocket);
@@ -162,7 +165,42 @@ function DocketPage() {
           when you need a compilation.
         </p>
 
-        {forumOf(matter) ? (
+        {desk?.fs ? (
+          <div className="mb-8 flex flex-wrap items-center gap-3">
+            <MetroButton
+              variant="accent"
+              onClick={async () => {
+                const r = await openFolder(folder);
+                if (!r?.ok) setStatus(r?.error || "Could not open that folder.", "err");
+              }}
+            >
+              Open orders folder
+            </MetroButton>
+            <p className="min-w-0 flex-1 truncate font-mono text-xs text-muted" title={folder}>
+              {folder}
+            </p>
+          </div>
+        ) : null}
+
+        {forumOf(matter) === "arb" ? (
+          <div className="mb-8 max-w-3xl bg-chrome px-5 py-5">
+            <p className="label-caps mb-2">Arbitration</p>
+            <p className="font-mono text-sm">{caseLabel(matter) || matter.config.caseNumber || "—"}</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <Field label="Institution">
+                <MetroInput value={matter.institution} onChange={(e) => patchDocket({ institution: e.target.value })} />
+              </Field>
+              <Field label="Seat">
+                <MetroInput value={matter.seat} onChange={(e) => patchDocket({ seat: e.target.value })} />
+              </Field>
+              <Field label="Tribunal">
+                <MetroInput value={matter.tribunal} onChange={(e) => patchDocket({ tribunal: e.target.value })} />
+              </Field>
+            </div>
+          </div>
+        ) : null}
+
+        {forumOf(matter) && forumOf(matter) !== "arb" ? (
           <div className="mb-8 max-w-3xl bg-chrome px-5 py-5">
             <p className="label-caps mb-2">Court record</p>
             <p className="font-mono text-sm">{caseLabel(matter) || matter.config.caseNumber}</p>
@@ -214,7 +252,7 @@ function DocketPage() {
                   const r = await refreshMatter(matter);
                   setRefreshing(false);
                   if (!r.ok) setStatus(r.error, "err");
-                  else setStatus(ordersSavedMessage(r.added, r.folder), "ok");
+                  else setStatus(ordersSavedMessage(r.added, r.folder, true), "ok");
                 }}
               >
                 {refreshing ? "Refreshing…" : "Refresh from court"}
@@ -223,13 +261,13 @@ function DocketPage() {
                 disabled={refreshing}
                 onClick={async () => {
                   setRefreshing(true);
-                  setStatus("Downloading missing orders…", "busy");
-                  const r = await pullMissingOrders(matter);
+                  setStatus("Downloading every order on the court record…", "busy");
+                  const r = await pullAllOrders(matter);
                   setRefreshing(false);
-                  setStatus(ordersSavedMessage(r.added, r.folder), "ok");
+                  setStatus(ordersSavedMessage(r.added, r.folder, true), "ok");
                 }}
               >
-                Download missing orders
+                Download all orders
               </MetroButton>
               <MetroButton
                 onClick={() => {
@@ -245,7 +283,7 @@ function DocketPage() {
               </MetroButton>
             </div>
           </div>
-        ) : (
+        ) : forumOf(matter) === "arb" ? null : (
           <p className="mb-6 max-w-xl text-sm text-muted">
             This file is manual. To pull parties, next date and orders from the court website, add it{" "}
             <button type="button" className="text-accent" onClick={() => void navigate({ to: "/fetch" })}>
@@ -254,6 +292,51 @@ function DocketPage() {
             .
           </p>
         )}
+
+        {parseConnected(matter.connected).length ? (
+          <div className="mb-8 max-w-3xl">
+            <p className="label-caps mb-3">Connected</p>
+            <p className="mb-3 text-sm text-muted leading-relaxed">
+              On the same serial. Add as its own file when the IA has separate orders. Common orders (same date and
+              title on both) are marked after you update orders.
+            </p>
+            <ul className="space-y-2">
+              {parseConnected(matter.connected).map((cn) => {
+                const existing = useBinder.getState().matters.find((x) => isTrackedCaseno(cn, matterCasenos(x)));
+                return (
+                  <li key={cn} className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-sm">{cn}</span>
+                    {existing ? (
+                      <MetroButton
+                        className="min-h-9 px-3 text-xs"
+                        onClick={() => {
+                          setActive(existing.id);
+                        }}
+                      >
+                        Open
+                      </MetroButton>
+                    ) : (
+                      <MetroButton
+                        className="min-h-9 px-3 text-xs"
+                        disabled={refreshing}
+                        onClick={async () => {
+                          setRefreshing(true);
+                          setStatus(`Adding ${cn}…`, "busy");
+                          const r = await addConnectedCaseno(cn, matter);
+                          setRefreshing(false);
+                          if (!r.ok) setStatus(r.error, "err");
+                          else setStatus(`${cn} added as its own file.`, "ok");
+                        }}
+                      >
+                        Add as own file
+                      </MetroButton>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : null}
 
         {n != null ? (
           <div className={cn("mb-8 max-w-xl px-5 py-6", n <= 0 ? "bg-tile-crimson" : "bg-tile-cyan")}>
@@ -663,13 +746,13 @@ function DocketPage() {
                 disabled={refreshing}
                 onClick={async () => {
                   setRefreshing(true);
-                  setStatus("Downloading missing orders…", "busy");
-                  const r = await pullMissingOrders(matter);
+                  setStatus("Downloading every order on the court record…", "busy");
+                  const r = await pullAllOrders(matter);
                   setRefreshing(false);
-                  setStatus(ordersSavedMessage(r.added, r.folder), "ok");
+                  setStatus(ordersSavedMessage(r.added, r.folder, true), "ok");
                 }}
               >
-                Download missing
+                Download all
               </MetroButton>
             ) : null}
           </div>
@@ -699,7 +782,14 @@ function DocketPage() {
                 <li key={o.id} className="bg-chrome p-4 space-y-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="font-semibold">{o.title || o.doc || "Order"}</p>
+                      <p className="font-semibold">
+                        {o.title || o.doc || "Order"}
+                        {o.common ? (
+                          <span className="ml-2 bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent-fg">
+                            Common
+                          </span>
+                        ) : null}
+                      </p>
                       <p className="text-xs text-muted">
                         {o.date || "—"}
                         {o.coram ? ` · ${o.coram}` : ""}
@@ -832,7 +922,7 @@ function DocketPage() {
                 const r = await refreshMatter(matter);
                 setRefreshing(false);
                 if (!r.ok) setStatus(r.error, "err");
-                else setStatus(ordersSavedMessage(r.added, r.folder), "ok");
+                else setStatus(ordersSavedMessage(r.added, r.folder, true), "ok");
               })();
             },
           },

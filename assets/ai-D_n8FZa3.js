@@ -1,1 +1,0 @@
-import{t as e}from"./createServerFn-UsFtsf2_.js";import{Ct as t}from"./index-ZLqeFMWI.js";var n=e({method:`POST`}).handler(t(`0800aa295ab335884aa1ffc84c84de42d446cdee3afcfbea59e7ad496db81e95`));export{n as t};

@@ -1,6 +1,7 @@
 import { daysUntil, parseLooseDate, toIsoDate } from "./dates";
 import type { Matter, NextStep } from "./types";
 import { downloadBlob, fileSafe } from "@/lib/utils";
+import { useCourt } from "./court-store";
 
 export function partyCaption(m: Pick<Matter, "petitioner" | "respondent" | "name">): string {
   const p = m.petitioner.trim();
@@ -110,7 +111,20 @@ function escIcs(s: string) {
     .replace(/\n/g, "\\n");
 }
 
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function parseHearingTime(raw: string): [number, number] {
+  const m = (raw || "10:30").match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return [10, 30];
+  return [Math.min(23, Number(m[1])), Math.min(59, Number(m[2]))];
+}
+
 export function buildHearingsIcs(matters: Matter[]): { ics: string; events: number } {
+  const settings = useCourt.getState().settings;
+  const [hh, mm] = parseHearingTime(settings.hearingTime || "10:30");
+  const remindDays = Math.max(0, Number(settings.remindDaysBefore) || 1);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
@@ -119,6 +133,18 @@ export function buildHearingsIcs(matters: Matter[]): { ics: string; events: numb
     "VERSION:2.0",
     "PRODID:-//Binder Builder//EN",
     "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "X-WR-CALNAME:Binder Builder hearings",
+    "X-WR-TIMEZONE:Asia/Kolkata",
+    "BEGIN:VTIMEZONE",
+    "TZID:Asia/Kolkata",
+    "BEGIN:STANDARD",
+    "DTSTART:19700101T000000",
+    "TZOFFSETFROM:+0530",
+    "TZOFFSETTO:+0530",
+    "TZNAME:IST",
+    "END:STANDARD",
+    "END:VTIMEZONE",
   ];
   let n = 0;
   const seen = new Set<string>();
@@ -127,7 +153,7 @@ export function buildHearingsIcs(matters: Matter[]): { ics: string; events: numb
     const caseno = m.config.caseNumber || m.name;
     const candidates: { date: string; label: string }[] = [];
     if (m.config.hearingDate) candidates.push({ date: m.config.hearingDate, label: "Hearing" });
-    if (m.nextListing) candidates.push({ date: m.nextListing, label: "Listing" });
+    else if (m.nextListing) candidates.push({ date: m.nextListing, label: "Listing" });
     for (const t of m.tasks ?? []) {
       if (!t.done && t.due) candidates.push({ date: t.due, label: t.text || "Task" });
     }
@@ -139,13 +165,31 @@ export function buildHearingsIcs(matters: Matter[]): { ics: string; events: numb
       if (seen.has(key)) continue;
       seen.add(key);
       n += 1;
+      const start = `${ymd}T${pad2(hh)}${pad2(mm)}00`;
+      const endH = hh + 3;
+      const end = `${ymd}T${pad2(endH > 23 ? 23 : endH)}${pad2(mm)}00`;
+      const summary = `${c.label} — ${name}`;
+      const desc = [caseno, m.config.court, m.stage, m.lastCoram, m.connected ? `with ${m.connected}` : ""]
+        .filter(Boolean)
+        .join(" · ");
       lines.push(
         "BEGIN:VEVENT",
         `UID:bb-${m.id.replace(/\W/g, "")}-${ymd}-${n}@binder`,
         `DTSTAMP:${stamp}`,
-        `DTSTART;VALUE=DATE:${ymd}`,
-        `SUMMARY:${escIcs(`${c.label} — ${name} (${caseno})`)}`,
-        `DESCRIPTION:${escIcs([caseno, m.config.court, m.stage, m.lastCoram].filter(Boolean).join(" · "))}`,
+        `DTSTART;TZID=Asia/Kolkata:${start}`,
+        `DTEND;TZID=Asia/Kolkata:${end}`,
+        `SUMMARY:${escIcs(summary)}`,
+        `DESCRIPTION:${escIcs(desc)}`,
+        "BEGIN:VALARM",
+        "ACTION:DISPLAY",
+        `DESCRIPTION:${escIcs(`Tomorrow: ${summary}`)}`,
+        `TRIGGER:-P${remindDays}D`,
+        "END:VALARM",
+        "BEGIN:VALARM",
+        "ACTION:DISPLAY",
+        `DESCRIPTION:${escIcs(`This morning: ${summary}`)}`,
+        "TRIGGER:-PT2H30M",
+        "END:VALARM",
         "END:VEVENT",
       );
     }

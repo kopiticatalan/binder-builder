@@ -91,6 +91,7 @@ export function migrateMatter(raw: Matter): Matter {
       downloaded: o.downloaded ?? Boolean(o.docId),
       docId: o.docId,
       diskPath: o.diskPath,
+      common: o.common,
     })),
     issues: (raw.issues ?? []).map((i) => ({
       id: i.id,
@@ -99,7 +100,7 @@ export function migrateMatter(raw: Matter): Matter {
       docIds: [...(i.docIds ?? [])],
     })),
     sample: raw.sample ?? false,
-    forum: raw.forum === "sat" || raw.forum === "nclt" || raw.forum === "bhc" ? raw.forum : undefined,
+    forum: raw.forum === "sat" || raw.forum === "nclt" || raw.forum === "bhc" || raw.forum === "arb" ? raw.forum : undefined,
     bench: raw.bench ?? "",
     benchLabel: raw.benchLabel ?? "",
     side: raw.side === "1" || raw.side === "2" ? raw.side : undefined,
@@ -123,5 +124,10 @@ export function migrateMatter(raw: Matter): Matter {
     courtLastDate: raw.courtLastDate ?? "",
     orderFolder: raw.orderFolder ?? "",
     orderNamePattern: raw.orderNamePattern ?? "",
+    parentId: raw.parentId ?? "",
+    connected: raw.connected ?? "",
+    tribunal: raw.tribunal ?? "",
+    seat: raw.seat ?? "",
+    institution: raw.institution ?? "",
   };
 }

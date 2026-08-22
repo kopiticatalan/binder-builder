@@ -114,6 +114,7 @@ export function forumOf(m: { forum?: string }) {
   if (m.forum === "sat") return "sat" as const;
   if (m.forum === "nclt") return "nclt" as const;
   if (m.forum === "bhc") return "bhc" as const;
+  if (m.forum === "arb") return "arb" as const;
   return "" as const;
 }
 
@@ -125,12 +126,16 @@ export function caseLabel(m: {
   stampreg?: string;
   lodging?: string;
   benchLabel?: string;
+  institution?: string;
   config?: { caseNumber?: string };
 }) {
   const stored = m.config?.caseNumber?.trim();
   if (!m.forum) return stored || "";
   if (forumOf(m) === "nclt") {
     return m.lodging || `${(m.typeName || "NCLT").split(" (")[0]} ${m.caseNo}/${m.year}`;
+  }
+  if (forumOf(m) === "arb") {
+    return stored || [m.institution, m.caseNo, m.year].filter(Boolean).join(" ") || "";
   }
   const no = m.caseNo || "—";
   const yr = m.year || "—";
