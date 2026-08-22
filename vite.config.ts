@@ -163,9 +163,58 @@ function courtApiPlugin(): Plugin {
       server.middlewares.use(async (req, res, next) => {
         const pathOnly = (req.url ?? "").split("?", 1)[0] ?? "";
         if (pathOnly === "/api/health" || pathOnly === "/api/version") {
-          res.statusCode = 200;
-          res.setHeader("content-type", "application/json; charset=utf-8");
-          res.end(JSON.stringify({ ok: true, version: "1.1.0" }));
+          try {
+            const mod = (await server.ssrLoadModule("/src/lib/court/fs.server.ts")) as {
+              fsInfo: () => Record<string, unknown>;
+            };
+            const info = mod.fsInfo();
+            const body = Buffer.from(JSON.stringify({ ...info, ok: true, version: info.version || "1.1.1" }));
+            res.statusCode = 200;
+            res.setHeader("content-type", "application/json; charset=utf-8");
+            res.setHeader("content-length", String(body.length));
+            res.end(body);
+          } catch {
+            res.statusCode = 200;
+            res.setHeader("content-type", "application/json; charset=utf-8");
+            res.end(JSON.stringify({ ok: true, version: "1.1.1", fs: false }));
+          }
+          return;
+        }
+        if (pathOnly.startsWith("/api/fs/")) {
+          if ((req.method ?? "GET").toUpperCase() !== "POST") {
+            res.statusCode = 405;
+            res.end("Method Not Allowed");
+            return;
+          }
+          try {
+            const chunks: Buffer[] = [];
+            await new Promise<void>((resolve, reject) => {
+              req.on("data", (c) => chunks.push(c as Buffer));
+              req.on("end", resolve);
+              req.on("error", reject);
+            });
+            const raw = Buffer.concat(chunks).toString("utf8") || "{}";
+            const data = JSON.parse(raw) as Record<string, unknown>;
+            const op = pathOnly.slice("/api/fs/".length).replace(/\/$/, "");
+            const mod = (await server.ssrLoadModule("/src/lib/court/fs.server.ts")) as {
+              dispatchFs: (op: string, data: Record<string, unknown>) => Promise<unknown>;
+            };
+            const result = await mod.dispatchFs(op, data);
+            const body = Buffer.from(JSON.stringify(result));
+            res.statusCode = 200;
+            res.setHeader("content-type", "application/json; charset=utf-8");
+            res.setHeader("content-length", String(body.length));
+            res.end(body);
+          } catch (err) {
+            res.statusCode = 200;
+            res.setHeader("content-type", "application/json; charset=utf-8");
+            res.end(
+              JSON.stringify({
+                ok: false,
+                error: err instanceof Error ? err.message : "Could not save that file.",
+              }),
+            );
+          }
           return;
         }
         if (!pathOnly.startsWith("/api/court/")) {

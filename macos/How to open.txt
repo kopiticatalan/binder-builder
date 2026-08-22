@@ -14,4 +14,11 @@ xcode-select --install). No Node. No npm. No “are you online” install.
 From court, cause lists and order PDFs work in this Mac app.
 The public web page is a static preview and cannot scrape court sites.
 
+Order PDFs land in Desktop/Bombay HC matters, one folder per matter
+(Petitioner v Respondent). Change the folder and the file name on the
+docket, or set the default in Settings.
+
+Cause-list scans watch Bharucha & Partners, Advani & Co., and
+Advani Law LLP until you add or edit firms on Board or in Settings.
+
 Apple Silicon (M1 / M2 / M3 / M4).

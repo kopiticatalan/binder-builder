@@ -1,11 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Field, MetroButton, MetroCheck, MetroInput, MetroSelect } from "@/components/metro/controls";
 import { PageShell } from "@/components/metro/shell";
+import { WatchListEditor } from "@/components/metro/watch-list";
 import { useCourt } from "@/lib/binder/court-store";
 import { parseImportPayload } from "@/lib/binder/import-tracker";
+import { NAME_PRESETS, DEFAULT_ORDER_PATTERN, formatOrderFilename } from "@/lib/binder/order-files";
 import { requestNotify } from "@/lib/binder/scan";
 import { useBinder } from "@/lib/binder/store";
+import { chooseFolder, deskFs, openFolder, type DeskFs } from "@/lib/court/fs";
 import { publicUrl } from "@/lib/utils";
 
 export const Route = createFileRoute("/settings")({ component: SettingsPage });
@@ -23,13 +26,32 @@ function SettingsPage() {
   const setStatus = useBinder((s) => s.setStatus);
   const status = useBinder((s) => s.status);
   const statusKind = useBinder((s) => s.statusKind);
-  const [watch, setWatch] = useState("");
-  const [watched, setWatched] = useState(settings.watched);
+  const [desk, setDesk] = useState<DeskFs | null>(null);
+
+  useEffect(() => {
+    void deskFs().then(setDesk);
+  }, []);
+
+  const defaultRoot = desk?.defaultRoot || "~/Desktop/Bombay HC matters";
+  const root = settings.orderRoot || defaultRoot;
+  const pattern = settings.orderNamePattern || DEFAULT_ORDER_PATTERN;
+  const known = NAME_PRESETS.some((p) => p.pattern === pattern);
+  const preview = formatOrderFilename({
+    pattern,
+    seq: 1,
+    date: "25/08/2026",
+    pet: "Divine Decor",
+    resp: "Municipal Corporation",
+    caseno: "WP/5306/2026",
+    doc: "Order",
+    srl: "01",
+    year: "2026",
+  });
 
   return (
     <PageShell title="settings" backTo="/" backLabel="start">
       <p className="mb-8 max-w-xl text-sm text-muted leading-relaxed text-pretty">
-        Watch-list, scan horizon, notifications, and backup. Matters stay in this browser.
+        Watch-list, where orders land on disk, scan horizon, notifications, and backup.
       </p>
       {status && statusKind !== "idle" ? (
         <p
@@ -47,61 +69,81 @@ function SettingsPage() {
 
       <section className="mb-10 max-w-xl">
         <p className="label-caps mb-3">Watch list</p>
+        <WatchListEditor />
+      </section>
+
+      <section className="mb-10 max-w-xl">
+        <p className="label-caps mb-3">Orders on disk</p>
         <p className="mb-4 text-sm text-muted leading-relaxed">
-          Cause-list scans also surface matters where these firms appear — Bombay High Court, SAT and NCLT.
+          {desk?.fs
+            ? "Each matter gets a subfolder under this root, named Petitioner v Respondent — unless you set a folder on that docket. Same idea as the original tracker: Desktop/Bombay HC matters by default."
+            : "In the Mac app, orders also write to a folder you pick (Desktop/Bombay HC matters by default, then Petitioner v Respondent). Override that on each docket. On this public page they stay in the binder; tap Save on an order to download one PDF."}
         </p>
-        <ul className="mb-4 space-y-2">
-          {watched.map((w, i) => (
-            <li key={i} className="flex gap-2">
-              <MetroInput
-                value={w}
-                onChange={(e) => {
-                  const next = [...watched];
-                  next[i] = e.target.value;
-                  setWatched(next);
-                }}
-              />
-              <MetroButton
-                variant="danger"
-                className="min-h-11 px-3"
-                onClick={() => setWatched(watched.filter((_, j) => j !== i))}
-              >
-                Remove
-              </MetroButton>
-            </li>
-          ))}
-        </ul>
-        <div className="mb-4 flex gap-2">
+        <Field
+          label="Default folder"
+          hint="Leave blank for Desktop/Bombay HC matters. Each matter uses a subfolder unless you override it on the docket."
+        >
           <MetroInput
-            placeholder="Firm name"
-            value={watch}
-            onChange={(e) => setWatch(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && watch.trim()) {
-                setWatched([...watched, watch.trim()]);
-                setWatch("");
-              }
-            }}
+            value={settings.orderRoot}
+            placeholder={defaultRoot}
+            onChange={(e) => setSettings({ orderRoot: e.target.value })}
           />
-          <MetroButton
-            onClick={() => {
-              if (!watch.trim()) return;
-              setWatched([...watched, watch.trim()]);
-              setWatch("");
+        </Field>
+        {desk?.fs ? (
+          <div className="mt-3 mb-6 flex flex-wrap gap-2">
+            <MetroButton
+              onClick={async () => {
+                const r = await chooseFolder("Default folder for court orders");
+                if (r?.ok && r.path) {
+                  setSettings({ orderRoot: r.path });
+                  setStatus("Default order folder saved.", "ok");
+                } else if (r && !r.ok && r.error !== "Cancelled.") {
+                  setStatus(r.error || "Could not pick a folder.", "err");
+                }
+              }}
+            >
+              Choose folder
+            </MetroButton>
+            <MetroButton
+              onClick={async () => {
+                const r = await openFolder(root);
+                if (!r?.ok) setStatus(r?.error || "Could not open that folder.", "err");
+              }}
+            >
+              Open folder
+            </MetroButton>
+          </div>
+        ) : (
+          <div className="mt-3 mb-6" />
+        )}
+        <Field
+          label="Default file name"
+          hint="{seq} oldest=1 · {date} 25082026 · {date_dmy} 25-08-2026 · {pet} {resp} {caseno} {doc} {srl} {year}"
+        >
+          <MetroSelect
+            value={known ? pattern : "__custom"}
+            onChange={(e) => {
+              if (e.target.value === "__custom") return;
+              setSettings({ orderNamePattern: e.target.value });
             }}
           >
-            Add
-          </MetroButton>
-        </div>
-        <MetroButton
-          variant="accent"
-          onClick={() => {
-            setSettings({ watched: watched.map((w) => w.trim()).filter(Boolean) });
-            setStatus("Watch list saved.", "ok");
-          }}
-        >
-          Save watch list
-        </MetroButton>
+            {NAME_PRESETS.map((p) => (
+              <option key={p.pattern} value={p.pattern}>
+                {p.label}
+              </option>
+            ))}
+            <option value="__custom">Custom pattern…</option>
+          </MetroSelect>
+        </Field>
+        {!known ? (
+          <div className="mt-3">
+            <MetroInput
+              value={pattern}
+              onChange={(e) => setSettings({ orderNamePattern: e.target.value })}
+            />
+          </div>
+        ) : null}
+        <p className="mt-3 text-xs text-muted font-mono leading-relaxed">{preview}</p>
       </section>
 
       <section className="mb-10 max-w-xl">

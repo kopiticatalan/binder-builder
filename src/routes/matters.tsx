@@ -5,7 +5,7 @@ import { PageShell } from "@/components/metro/shell";
 import { parseBackupZip } from "@/lib/binder/io";
 import { partyCaption, dayPhrase } from "@/lib/binder/docket";
 import { daysUntil } from "@/lib/binder/dates";
-import { refreshMatter } from "@/lib/binder/orders";
+import { ordersSavedMessage, refreshMatter } from "@/lib/binder/orders";
 import { useBinder } from "@/lib/binder/store";
 import { effectivePages } from "@/lib/binder/types";
 import { canFetchCourt, caseLabel, forumOf } from "@/lib/utils";
@@ -184,7 +184,7 @@ function MattersPage() {
                         const r = await refreshMatter(m);
                         setBusy("");
                         if (!r.ok) setStatus(r.error, "err");
-                        else setStatus(`${r.added} new order(s).`, "ok");
+                        else setStatus(ordersSavedMessage(r.added, r.folder), "ok");
                       }}
                     >
                       {busy === m.id ? "…" : "Refresh"}

@@ -15,9 +15,9 @@ The public web page is a static preview. Bombay High Court / SAT / NCLT lookup, 
 ## What it does
 
 - **From court** — live lookup on Bombay High Court, SAT and NCLT (parties, next date, orders)
-- **Orders** — download the PDFs onto this device; they drop into the binder
+- **Orders** — download the PDFs onto this device; they drop into the binder. In the Mac app they also write to **Desktop/Bombay HC matters / Petitioner v Respondent**, named `1 25082026 Petitioner v Respondent.pdf` (same as the original tracker). Change the folder and the name on each docket, or the default in Settings.
 - **Cause lists** — scan published boards, add a listed case into the practice
-- **Watch list** — surface matters where named firms appear
+- **Watch list** — defaults to **Bharucha & Partners**, **Advani & Co.**, **Advani Law LLP**. Add or edit firms on Board or in Settings. Matching treats `&`/`and` and `Co.`/`Company` as the same.
 - **Docket** — parties, court, case number, next listing, stage, status, refresh
 - **Board** — scraped lists plus diary dates; calendar (.ics) export
 - **Tasks** — next steps across matters

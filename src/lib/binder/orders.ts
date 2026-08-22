@@ -1,8 +1,10 @@
 import { PDFDocument } from "pdf-lib";
 import { fetchCase, fetchOrderPdfs } from "@/lib/court/client";
+import { arrayBufferToBase64, deskFs, savePdfToFolder } from "@/lib/court/fs";
 import { autoBookmark } from "./guess";
 import { saveBytes } from "./idb";
 import { matterFromLookup, lookupParamsOf } from "./court-map";
+import { filenameForOrder, resolvedOrderFolder } from "./order-files";
 import { useBinder } from "./store";
 import { useCourt } from "./court-store";
 import { blankDoc } from "./types";
@@ -14,6 +16,21 @@ function b64ToBuf(base64: string) {
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes.buffer;
+}
+
+async function writeOrderToDisk(
+  matter: Matter,
+  file: { key: string; filename: string; base64: string },
+) {
+  const desk = await deskFs();
+  if (!desk.fs) return "";
+  const settings = useCourt.getState().settings;
+  const folder = resolvedOrderFolder(matter, settings, desk.defaultRoot);
+  const order = matter.orders.find((o) => o.key === file.key);
+  const filename = order ? filenameForOrder(matter, order, settings) : file.filename;
+  const out = await savePdfToFolder(folder, filename, file.base64);
+  if (!out?.ok) return "";
+  return out.path || "";
 }
 
 async function ingestOrderFile(
@@ -31,9 +48,12 @@ async function ingestOrderFile(
   const existing = matter.orders.find((o) => o.key === file.key);
   const docId = existing?.docId || newId();
   const already = matter.docs.some((d) => d.id === docId);
+  const diskPath = await writeOrderToDisk(matter, file);
+  const settings = useCourt.getState().settings;
+  const named = existing ? filenameForOrder(matter, existing, settings) : file.filename;
   const doc = blankDoc({
     id: docId,
-    filename: file.filename,
+    filename: named || file.filename,
     pageCount,
     kind: "order",
     notes: file.excerpt || existing?.excerpt || "",
@@ -46,7 +66,13 @@ async function ingestOrderFile(
     (m) => {
       m.orders = m.orders.map((o) =>
         o.key === file.key
-          ? { ...o, downloaded: true, excerpt: file.excerpt || o.excerpt, docId: doc.id }
+          ? {
+              ...o,
+              downloaded: true,
+              excerpt: file.excerpt || o.excerpt,
+              docId: doc.id,
+              diskPath: diskPath || o.diskPath,
+            }
           : o,
       );
       if (!already && !m.docs.some((d) => d.id === doc.id)) {
@@ -59,9 +85,42 @@ async function ingestOrderFile(
   );
 }
 
+export async function saveOrderBytesToFolder(
+  matter: Matter,
+  order: { key?: string; date: string; title: string; doc?: string; srl?: string },
+  buf: ArrayBuffer,
+) {
+  const desk = await deskFs();
+  if (!desk.fs) return { ok: false as const, error: "no-fs" as const };
+  const settings = useCourt.getState().settings;
+  const folder = resolvedOrderFolder(matter, settings, desk.defaultRoot);
+  const filename = filenameForOrder(matter, order as Matter["orders"][number], settings);
+  const out = await savePdfToFolder(folder, filename, arrayBufferToBase64(buf));
+  if (!out?.ok) return { ok: false as const, error: out?.error || "Could not write that PDF." };
+  if (order.key) {
+    useBinder.getState().patchMatter(
+      matter.id,
+      (m) => {
+        m.orders = m.orders.map((o) =>
+          o.key === order.key ? { ...o, diskPath: out.path || o.diskPath } : o,
+        );
+      },
+      { undo: false },
+    );
+  }
+  return { ok: true as const, path: out.path || folder, existed: out.existed };
+}
+
 export async function pullMissingOrders(matter: Matter, keys?: string[]) {
   const want = keys ?? matter.orders.filter((o) => o.key && !o.downloaded).map((o) => o.key!);
-  if (!want.length) return { added: 0 };
+  if (!want.length) {
+    const desk = await deskFs();
+    const settings = useCourt.getState().settings;
+    return {
+      added: 0,
+      folder: desk.fs ? resolvedOrderFolder(matter, settings, desk.defaultRoot) : "",
+    };
+  }
   let added = 0;
   const chunk = 5;
   let current = useBinder.getState().matters.find((m) => m.id === matter.id) ?? matter;
@@ -91,7 +150,17 @@ export async function pullMissingOrders(matter: Matter, keys?: string[]) {
       added += 1;
     }
   }
-  return { added };
+  current = useBinder.getState().matters.find((m) => m.id === matter.id) ?? current;
+  const desk = await deskFs();
+  const settings = useCourt.getState().settings;
+  const folder = desk.fs ? resolvedOrderFolder(current, settings, desk.defaultRoot) : "";
+  return { added, folder };
+}
+
+export function ordersSavedMessage(added: number, folder?: string) {
+  if (!added) return folder ? `No new orders. Folder: ${folder}` : "No new orders.";
+  if (folder) return `${added} order(s) saved to ${folder}.`;
+  return `${added} order(s) saved in the binder.`;
 }
 
 export async function refreshMatter(matter: Matter) {
@@ -118,5 +187,5 @@ export async function refreshMatter(matter: Matter) {
   const pulled = await pullMissingOrders(next, missing);
   useCourt.getState().log("refresh", `${next.petitioner} v ${next.respondent}`, `${pulled.added} new order(s)`);
   useCourt.getState().reannotate(useBinder.getState().matters);
-  return { ok: true as const, added: pulled.added, matter: next };
+  return { ok: true as const, added: pulled.added, folder: pulled.folder, matter: next };
 }

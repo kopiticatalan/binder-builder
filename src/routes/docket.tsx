@@ -7,9 +7,17 @@ import { PageShell } from "@/components/metro/shell";
 import { dayPhrase, downloadHearingsIcs, partyCaption } from "@/lib/binder/docket";
 import { daysUntil } from "@/lib/binder/dates";
 import { loadBytes } from "@/lib/binder/idb";
-import { pullMissingOrders, refreshMatter } from "@/lib/binder/orders";
+import {
+  NAME_PRESETS,
+  filenameForOrder,
+  resolvedNamePattern,
+  resolvedOrderFolder,
+} from "@/lib/binder/order-files";
+import { ordersSavedMessage, pullMissingOrders, refreshMatter, saveOrderBytesToFolder } from "@/lib/binder/orders";
+import { useCourt } from "@/lib/binder/court-store";
 import { useBinder } from "@/lib/binder/store";
 import { draftHearingBrief } from "@/lib/court/actions";
+import { chooseFolder, deskFs, openFolder, type DeskFs } from "@/lib/court/fs";
 import type { MatterStatus, OrderMeta } from "@/lib/binder/types";
 import { canFetchCourt, caseLabel, cn, downloadBlob, forumOf } from "@/lib/utils";
 
@@ -46,6 +54,12 @@ function DocketPage() {
   const [briefing, setBriefing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [viewer, setViewer] = useState<{ url: string; name: string } | null>(null);
+  const [desk, setDesk] = useState<DeskFs | null>(null);
+  const settings = useCourt((s) => s.settings);
+
+  useEffect(() => {
+    void deskFs().then(setDesk);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -106,6 +120,7 @@ function DocketPage() {
   }
 
   async function saveOrder(o: OrderMeta) {
+    if (!matter) return;
     const id = o.docId;
     if (!id) {
       setStatus("PDF is not downloaded yet.", "err");
@@ -116,8 +131,29 @@ function DocketPage() {
       setStatus("PDF is not downloaded yet.", "err");
       return;
     }
-    downloadBlob(new Blob([buf], { type: "application/pdf" }), `${o.title || "order"}.pdf`);
+    const name = filenameForOrder(matter, o, settings);
+    const written = await saveOrderBytesToFolder(matter, o, buf);
+    if (written.ok) {
+      setStatus(written.existed ? `Already on disk: ${written.path}` : `Saved to ${written.path}`, "ok");
+      return;
+    }
+    if (written.error && written.error !== "no-fs") {
+      setStatus(written.error, "err");
+      return;
+    }
+    downloadBlob(new Blob([buf], { type: "application/pdf" }), name);
+    setStatus("Saved to Downloads. The Mac app writes to the folder on this docket.", "ok");
   }
+
+  const defaultRoot = desk?.defaultRoot || "~/Desktop/Bombay HC matters";
+  const folder = resolvedOrderFolder(matter, settings, defaultRoot);
+  const pattern = resolvedNamePattern(matter, settings);
+  const knownPattern = NAME_PRESETS.some((p) => p.pattern === (matter.orderNamePattern || pattern));
+  const previewName = filenameForOrder(
+    matter,
+    matter.orders[0] || { id: "x", date: "25/08/2026", title: "Order", coram: "", excerpt: "" },
+    settings,
+  );
 
   return (
     <main className="min-h-dvh bg-bg pb-28 text-fg">
@@ -179,7 +215,7 @@ function DocketPage() {
                   const r = await refreshMatter(matter);
                   setRefreshing(false);
                   if (!r.ok) setStatus(r.error, "err");
-                  else setStatus(`${r.added} new order(s).`, "ok");
+                  else setStatus(ordersSavedMessage(r.added, r.folder), "ok");
                 }}
               >
                 {refreshing ? "Refreshing…" : "Refresh from court"}
@@ -191,7 +227,7 @@ function DocketPage() {
                   setStatus("Downloading missing orders…", "busy");
                   const r = await pullMissingOrders(matter);
                   setRefreshing(false);
-                  setStatus(`${r.added} order(s) saved.`, "ok");
+                  setStatus(ordersSavedMessage(r.added, r.folder), "ok");
                 }}
               >
                 Download missing orders
@@ -487,10 +523,94 @@ function DocketPage() {
         </section>
 
         <section className="mb-12 max-w-3xl">
+          <p className="label-caps mb-3">Orders on disk</p>
+          <p className="mb-4 text-sm text-muted leading-relaxed">
+            {desk?.fs
+              ? "Fetched order PDFs write to this folder, named as below. Leave the folder blank to use Settings — Desktop/Bombay HC matters, then a Petitioner v Respondent subfolder."
+              : "In the Mac app, fetched orders also write here. On this page they stay in the binder; Save downloads one PDF. Blank folder uses Desktop/Bombay HC matters / Petitioner v Respondent."}
+          </p>
+          <div className="mb-8 bg-chrome px-5 py-5 space-y-4">
+            <Field label="Folder for this matter" hint={`Resolved: ${folder}`}>
+              <MetroInput
+                value={matter.orderFolder}
+                placeholder={folder}
+                onChange={(e) => patchDocket({ orderFolder: e.target.value })}
+              />
+            </Field>
+            <div className="flex flex-wrap gap-2">
+              {desk?.fs ? (
+                <>
+                  <MetroButton
+                    onClick={async () => {
+                      const r = await chooseFolder("Folder for orders in this matter");
+                      if (r?.ok && r.path) {
+                        patchDocket({ orderFolder: r.path });
+                        setStatus("Folder saved for this matter.", "ok");
+                      } else if (r && !r.ok && r.error !== "Cancelled.") {
+                        setStatus(r.error || "Could not pick a folder.", "err");
+                      }
+                    }}
+                  >
+                    Choose folder
+                  </MetroButton>
+                  <MetroButton
+                    onClick={async () => {
+                      const r = await openFolder(folder);
+                      if (!r?.ok) setStatus(r?.error || "Could not open that folder.", "err");
+                    }}
+                  >
+                    Open folder
+                  </MetroButton>
+                </>
+              ) : null}
+              {matter.orderFolder ? (
+                <MetroButton
+                  onClick={() => {
+                    patchDocket({ orderFolder: "" });
+                    setStatus("This matter will use the default folder.", "ok");
+                  }}
+                >
+                  Use default
+                </MetroButton>
+              ) : null}
+            </div>
+            <Field
+              label="File name"
+              hint="{seq} oldest=1 · {date} 25082026 · {date_dmy} 25-08-2026 · {pet} {resp} {caseno} {doc} {srl} {year}"
+            >
+              <MetroSelect
+                value={knownPattern ? matter.orderNamePattern || pattern : "__custom"}
+                onChange={(e) => {
+                  if (e.target.value === "__custom") return;
+                  patchDocket({ orderNamePattern: e.target.value });
+                }}
+              >
+                {NAME_PRESETS.map((p) => (
+                  <option key={p.pattern} value={p.pattern}>
+                    {p.label}
+                  </option>
+                ))}
+                <option value="__custom">Custom pattern…</option>
+              </MetroSelect>
+            </Field>
+            <MetroInput
+              value={matter.orderNamePattern || pattern}
+              onChange={(e) => patchDocket({ orderNamePattern: e.target.value })}
+            />
+            {matter.orderNamePattern ? (
+              <MetroButton onClick={() => patchDocket({ orderNamePattern: "" })}>
+                Use settings default
+              </MetroButton>
+            ) : null}
+            <p className="text-xs text-muted font-mono leading-relaxed">{previewName}</p>
+          </div>
+
           <p className="label-caps mb-3">Orders · {(matter.orders ?? []).length}</p>
           <p className="mb-3 text-sm text-muted">
             {canFetchCourt(matter)
-              ? "Fetched from the court website. View opens the PDF in this page; Save downloads it."
+              ? desk?.fs
+                ? `Fetched from the court website. View opens the PDF here. Save writes it to ${folder}.`
+                : "Fetched from the court website. View opens the PDF in this page; Save downloads it. The Mac app also writes to the folder above."
               : "Manual diary of what came on the last date — or add the matter from court to pull PDFs."}
           </p>
           <div className="mb-4 flex flex-wrap gap-2">
@@ -505,7 +625,7 @@ function DocketPage() {
                   setStatus("Downloading missing orders…", "busy");
                   const r = await pullMissingOrders(matter);
                   setRefreshing(false);
-                  setStatus(`${r.added} order(s) saved.`, "ok");
+                  setStatus(ordersSavedMessage(r.added, r.folder), "ok");
                 }}
               >
                 Download missing
@@ -543,6 +663,7 @@ function DocketPage() {
                         {o.date || "—"}
                         {o.coram ? ` · ${o.coram}` : ""}
                         {o.downloaded ? " · downloaded" : ""}
+                        {o.diskPath ? ` · ${o.diskPath}` : ""}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -670,7 +791,7 @@ function DocketPage() {
                 const r = await refreshMatter(matter);
                 setRefreshing(false);
                 if (!r.ok) setStatus(r.error, "err");
-                else setStatus(`${r.added} new order(s).`, "ok");
+                else setStatus(ordersSavedMessage(r.added, r.folder), "ok");
               })();
             },
           },

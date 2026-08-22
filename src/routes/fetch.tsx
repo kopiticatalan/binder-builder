@@ -7,7 +7,7 @@ import { fetchCase, fetchCaseTypes } from "@/lib/court/client";
 import { courtFailMessage } from "@/lib/court/local";
 import { matterFromLookup } from "@/lib/binder/court-map";
 import { useCourt } from "@/lib/binder/court-store";
-import { pullMissingOrders } from "@/lib/binder/orders";
+import { ordersSavedMessage, pullMissingOrders } from "@/lib/binder/orders";
 import { useBinder } from "@/lib/binder/store";
 import type { CaseType, Forum, StampReg } from "@/lib/types";
 import { NCLT_BENCHES, NCLT_CASE_TYPES, SAT_APPEAL_TYPES } from "@/lib/types";
@@ -111,12 +111,7 @@ function FetchPage() {
       log("add", `${matter.petitioner} v ${matter.respondent}`, "From court site");
       setStatus("Matter saved. Downloading orders…", "busy");
       const pulled = await pullMissingOrders(matter);
-      setStatus(
-        pulled.added
-          ? `${pulled.added} order${pulled.added === 1 ? "" : "s"} downloaded into the binder.`
-          : "Record saved. No new order PDFs.",
-        "ok",
-      );
+      setStatus(ordersSavedMessage(pulled.added, pulled.folder), "ok");
       setCaseNo("");
       void navigate({ to: "/docket" });
     } catch (e) {

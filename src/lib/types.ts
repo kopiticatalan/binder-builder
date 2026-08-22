@@ -123,6 +123,8 @@ export type TrackerSettings = {
   watched: string[];
   scan_days: number;
   notify: boolean;
+  orderRoot: string;
+  orderNamePattern: string;
 };
 
 export type ActivityEvent = {
@@ -203,8 +205,12 @@ export const NCLT_CASE_TYPES: { value: string; label: string }[] = [
   { value: "35", label: "Voluntary Liquidation (IBC)" },
 ];
 
+export const DEFAULT_ORDER_PATTERN = "{seq} {date} {pet} v {resp}";
+
 export const DEFAULT_SETTINGS: TrackerSettings = {
   watched: ["Bharucha & Partners", "Advani & Co.", "Advani Law LLP"],
   scan_days: 5,
   notify: true,
+  orderRoot: "",
+  orderNamePattern: DEFAULT_ORDER_PATTERN,
 };

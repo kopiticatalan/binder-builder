@@ -40,6 +40,8 @@ type DocketPatch = Partial<
     | "partner"
     | "associates"
     | "tags"
+    | "orderFolder"
+    | "orderNamePattern"
   >
 >;
 

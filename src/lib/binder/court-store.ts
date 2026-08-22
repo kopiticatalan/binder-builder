@@ -133,6 +133,17 @@ export const useCourt = create<CourtState>()(
     {
       name: "bb-court-v1",
       skipHydration: true,
+      merge: (persisted, current) => {
+        const p = (persisted || {}) as Partial<CourtState>;
+        return {
+          ...current,
+          ...p,
+          settings: { ...DEFAULT_SETTINGS, ...(p.settings || {}) },
+          listings: p.listings
+            ? { ...p.listings, scanning: false }
+            : current.listings,
+        };
+      },
       partialize: (s) => ({
         settings: s.settings,
         listings: { ...s.listings, scanning: false },

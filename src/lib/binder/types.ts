@@ -100,6 +100,7 @@ export interface OrderMeta {
   doc?: string;
   downloaded?: boolean;
   docId?: string;
+  diskPath?: string;
 }
 
 export interface Issue {
@@ -183,6 +184,8 @@ export interface Matter {
   nextListing: string;
   lastRefresh: string;
   courtStatus: string;
+  orderFolder: string;
+  orderNamePattern: string;
 }
 
 export interface CourtTemplate {

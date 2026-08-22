@@ -3,12 +3,13 @@ import { useState } from "react";
 import { MetroButton, MetroSelect } from "@/components/metro/controls";
 import { PageShell } from "@/components/metro/shell";
 import { Pivot } from "@/components/metro/pivot";
+import { WatchListEditor, watchingLabel } from "@/components/metro/watch-list";
 import { downloadCauselistPdf, resolveListing } from "@/lib/court/client";
 import { courtFailMessage } from "@/lib/court/local";
 import { matterFromLookup } from "@/lib/binder/court-map";
 import { useCourt } from "@/lib/binder/court-store";
 import { boardRows, dayPhrase, downloadHearingsIcs } from "@/lib/binder/docket";
-import { pullMissingOrders } from "@/lib/binder/orders";
+import { ordersSavedMessage, pullMissingOrders } from "@/lib/binder/orders";
 import { runCauselistScan } from "@/lib/binder/scan";
 import { useBinder } from "@/lib/binder/store";
 import type { ListingRow } from "@/lib/types";
@@ -46,7 +47,7 @@ function ListingsPage() {
   async function scan() {
     setStatus("Scanning published boards. This can take a minute.", "busy");
     const r = await runCauselistScan(settings.scan_days);
-    if (r.ok) setStatus(`Cause lists updated · ${r.rows} row(s).`, "ok");
+    if (r.ok) setStatus(`Cause lists updated · ${r.rows} row(s). ${watchingLabel(settings.watched)}`, "ok");
     else setStatus(r.error, "err");
   }
 
@@ -66,7 +67,7 @@ function ListingsPage() {
       log("add", `${matter.petitioner} v ${matter.respondent}`, "From cause list");
       setStatus("Matter added. Downloading orders…", "busy");
       const pulled = await pullMissingOrders(matter);
-      setStatus(`${pulled.added} order(s) downloaded.`, "ok");
+      setStatus(ordersSavedMessage(pulled.added, pulled.folder), "ok");
     } catch (e) {
       setStatus(courtFailMessage(e), "err");
     } finally {
@@ -113,7 +114,7 @@ function ListingsPage() {
     >
       <p className="mb-6 max-w-xl text-sm text-muted leading-relaxed text-pretty">
         Scan published Bombay High Court, SAT and NCLT cause lists, then add a listed case into your practice. Diary is
-        the next-listing date on each docket — including dates the court site returned.
+        the next-listing date on each docket — including dates the court site returned. {watchingLabel(settings.watched)}
       </p>
       {status && statusKind !== "idle" ? (
         <p
@@ -158,7 +159,16 @@ function ListingsPage() {
               {listings.scanning ? "Scanning…" : "Scan lists"}
             </MetroButton>
             <MetroButton onClick={() => void navigate({ to: "/fetch" })}>From court</MetroButton>
-            <MetroButton onClick={() => void navigate({ to: "/settings" })}>Watch list</MetroButton>
+            <MetroButton onClick={() => void navigate({ to: "/settings" })}>Settings</MetroButton>
+          </div>
+
+          <div className="mb-6 max-w-xl bg-chrome px-5 py-5">
+            <p className="label-caps mb-3">Watch list</p>
+            <p className="mb-4 text-sm text-muted leading-relaxed">
+              Boards that mention these firms are flagged, same as the original tracker. Add, rename or remove — it
+              saves as you type.
+            </p>
+            <WatchListEditor compact />
           </div>
 
           <div className="mb-4 flex flex-wrap items-center gap-3">

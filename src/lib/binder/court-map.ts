@@ -90,6 +90,8 @@ export function matterFromLookup(
     issues: existing?.issues ?? [],
     orders: mergeOrders(lookup, existing),
     sample: false,
+    orderFolder: existing?.orderFolder || "",
+    orderNamePattern: existing?.orderNamePattern || "",
   };
 
   const label = caseLabel(next);
@@ -122,6 +124,7 @@ function mergeOrders(lookup: CourtLookup, existing?: Matter): OrderMeta[] {
       doc: o.doc,
       downloaded: prev?.downloaded ?? Boolean(prev?.docId),
       docId: prev?.docId,
+      diskPath: prev?.diskPath,
     };
   });
   const keys = new Set(fetched.map((o) => o.key).filter(Boolean));

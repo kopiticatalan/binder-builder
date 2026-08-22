@@ -7,15 +7,17 @@ import mimetypes
 import os
 import posixpath
 import re
+import subprocess
 import sys
 import threading
+import base64
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote, urlparse
 
 import court
 import forums
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 HOST, PORT = "127.0.0.1", 8765
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -288,6 +290,96 @@ def dispatch(op, data):
     return {"ok": False, "error": "Unknown court action: %s" % op}
 
 
+def _home():
+    return os.path.expanduser("~")
+
+
+def _desktop():
+    d = os.path.join(_home(), "Desktop")
+    return d if os.path.isdir(d) else _home()
+
+
+def _default_root():
+    return os.path.join(_desktop(), "Bombay HC matters")
+
+
+def fs_info():
+    return {
+        "ok": True,
+        "fs": True,
+        "version": VERSION,
+        "home": _home(),
+        "desktop": _desktop(),
+        "defaultRoot": _default_root(),
+    }
+
+
+def _expand(p):
+    raw = (p or "").strip()
+    if not raw:
+        raise RuntimeError("Missing folder.")
+    return os.path.realpath(os.path.expanduser(raw))
+
+
+def _under_home(p):
+    home = os.path.realpath(_home())
+    real = os.path.realpath(p)
+    if real == home or real.startswith(home + os.sep):
+        return real
+    if real.startswith("/Volumes" + os.sep):
+        return real
+    raise RuntimeError("Folder must be inside your home directory or a mounted volume.")
+
+
+def dispatch_fs(op, data):
+    if op == "choose-folder":
+        prompt = (data.get("prompt") or "Folder for orders").replace('"', "'")
+        try:
+            proc = subprocess.run(
+                ["osascript", "-e", 'POSIX path of (choose folder with prompt "%s")' % prompt],
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+        except Exception as e:
+            return {"ok": False, "error": _err(e)}
+        if proc.returncode != 0:
+            return {"ok": False, "error": "Cancelled."}
+        path = (proc.stdout or "").strip()
+        if not path:
+            return {"ok": False, "error": "Cancelled."}
+        return {"ok": True, "path": path.rstrip("/")}
+    if op == "open-folder":
+        try:
+            path = _under_home(_expand(data.get("path") or _default_root()))
+            if not os.path.isdir(path):
+                os.makedirs(path, exist_ok=True)
+            subprocess.Popen(["open", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": _err(e)}
+    if op == "save-pdf":
+        try:
+            folder = _under_home(_expand(data.get("folder") or ""))
+            filename = re.sub(r"[\\/]", "", str(data.get("filename") or "order.pdf"))
+            b64 = data.get("base64") or ""
+            if not b64:
+                return {"ok": False, "error": "Missing PDF."}
+            os.makedirs(folder, exist_ok=True)
+            dest = os.path.join(folder, filename)
+            if os.path.exists(dest):
+                return {"ok": True, "path": dest, "existed": True}
+            raw = base64.b64decode(b64)
+            if raw[:5] != b"%PDF-":
+                return {"ok": False, "error": "That file is not a PDF."}
+            with open(dest, "wb") as f:
+                f.write(raw)
+            return {"ok": True, "path": dest, "existed": False}
+        except Exception as e:
+            return {"ok": False, "error": _err(e)}
+    return {"ok": False, "error": "Unknown file action: %s" % op}
+
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -323,7 +415,7 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = unquote(parsed.path or "/")
         if path == "/api/health":
-            self._json({"ok": True, "version": VERSION})
+            self._json(fs_info())
             return
         if path == "/api/version":
             self._json({"version": VERSION})
@@ -341,6 +433,11 @@ class Handler(BaseHTTPRequestHandler):
             op = path[len("/api/court/") :].strip("/")
             data = self._read_json()
             self._json(dispatch(op, data))
+            return
+        if path.startswith("/api/fs/"):
+            op = path[len("/api/fs/") :].strip("/")
+            data = self._read_json()
+            self._json(dispatch_fs(op, data))
             return
         self._json({"ok": False, "error": "Not found."}, 404)
 

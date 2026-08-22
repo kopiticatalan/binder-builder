@@ -90,6 +90,7 @@ export function migrateMatter(raw: Matter): Matter {
       doc: o.doc || o.title,
       downloaded: o.downloaded ?? Boolean(o.docId),
       docId: o.docId,
+      diskPath: o.diskPath,
     })),
     issues: (raw.issues ?? []).map((i) => ({
       id: i.id,
@@ -119,5 +120,7 @@ export function migrateMatter(raw: Matter): Matter {
     nextListing: raw.nextListing ?? "",
     lastRefresh: raw.lastRefresh ?? "",
     courtStatus: raw.courtStatus ?? "",
+    orderFolder: raw.orderFolder ?? "",
+    orderNamePattern: raw.orderNamePattern ?? "",
   };
 }

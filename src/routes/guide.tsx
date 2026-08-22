@@ -10,7 +10,7 @@ const BLOCKS = [
   },
   {
     title: "Cause lists",
-    body: "Board → Scan lists walks published SAT, NCLT and Bombay High Court boards for the next few days. Your matters are tagged. Watched firms (Settings) surface other listed cases. Tap Add to practice to look up that case and save it. List PDF downloads the day’s board.",
+    body: "Board → Scan lists walks published SAT, NCLT and Bombay High Court boards for the next few days. Your matters are tagged. Watched firms (on Board, or Settings) surface other listed cases. The original three are Bharucha & Partners, Advani & Co., and Advani Law LLP — add or edit names there; matching treats “&” and “and”, “Co.” and “Company” as the same. Tap Add to practice to look up that case and save it. List PDF downloads the day’s board.",
   },
   {
     title: "Next date and refresh",
@@ -18,7 +18,7 @@ const BLOCKS = [
   },
   {
     title: "Orders",
-    body: "Each order on the court record can be viewed in-page or saved as a PDF. Missing orders download in batches of five. Excerpts are pulled from the PDF so the hearing brief can quote the last operative directions.",
+    body: "Each order on the court record can be viewed in-page. In the Mac app, PDFs also write to a folder you pick — by default Desktop/Bombay HC matters, then a Petitioner v Respondent subfolder, named like “1 25082026 Petitioner v Respondent.pdf”. Set the folder and the name on that docket, or the default in Settings. Missing orders download in batches of five. On the public web page they stay in the binder; Save downloads one PDF.",
   },
   {
     title: "Hearing brief",
@@ -26,7 +26,7 @@ const BLOCKS = [
   },
   {
     title: "Watch list and backup",
-    body: "Settings holds the firms you watch on cause lists, how many days ahead to scan, and desktop notifications when one of yours is listed today. Export JSON to back up; import the original Matter Tracker matters.json.",
+    body: "Board and Settings hold the firms you watch on cause lists, how many days ahead to scan, and where orders land on disk. Desktop notifications fire when one of yours is listed today. Export JSON to back up; import the original Matter Tracker matters.json.",
   },
   {
     title: "Caption marks",
@@ -58,7 +58,7 @@ const BLOCKS = [
   },
   {
     title: "Where files live",
-    body: "Matters, listings and PDFs stay in this browser. Court fetch talks to bombayhighcourt.gov.in, sat.gov.in and nclt.gov.in from the local server. Nothing is uploaded except when you tap Clean caption, Read cite, Holding, Draft brief or Draft from starred. Use Backup zip or Settings → Export before switching machines.",
+    body: "Matters, listings and PDFs stay in this browser. In the Mac app, court orders also write to the folder on each docket. Court fetch talks to bombayhighcourt.gov.in, sat.gov.in and nclt.gov.in from the local server. Nothing is uploaded except when you tap Clean caption, Read cite, Holding, Draft brief or Draft from starred. Use Backup zip or Settings → Export before switching machines.",
   },
 ];
 
