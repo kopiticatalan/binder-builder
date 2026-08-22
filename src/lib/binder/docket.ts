@@ -39,7 +39,13 @@ export function allOpenTasks(matters: Matter[]): { matter: Matter; step: NextSte
 }
 
 export function listingDate(m: Matter): string {
-  return (m.config.hearingDate || m.lastListing || "").trim();
+  if (m.config.hearingDate) return m.config.hearingDate.trim();
+  if (m.nextListing) {
+    const d = parseLooseDate(m.nextListing);
+    if (d) return toIsoDate(d);
+    return m.nextListing.trim();
+  }
+  return (m.lastListing || "").trim();
 }
 
 export type BoardRow = {
@@ -111,6 +117,7 @@ export function buildHearingsIcs(matters: Matter[]): { ics: string; events: numb
     const caseno = m.config.caseNumber || m.name;
     const candidates: { date: string; label: string }[] = [];
     if (m.config.hearingDate) candidates.push({ date: m.config.hearingDate, label: "Hearing" });
+    if (m.nextListing) candidates.push({ date: m.nextListing, label: "Listing" });
     for (const t of m.tasks ?? []) {
       if (!t.done && t.due) candidates.push({ date: t.due, label: t.text || "Task" });
     }

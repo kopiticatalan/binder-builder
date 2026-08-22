@@ -5,6 +5,30 @@ export const Route = createFileRoute("/guide")({ component: GuidePage });
 
 const BLOCKS = [
   {
+    title: "From court",
+    body: "The main way in. Pick Bombay High Court, SAT or NCLT, then the case type, number and year. The live record is fetched — parties, CNR, stage, next listing, advocates, orders. Order PDFs download onto this device and land in the binder as papers. Run the app locally so the server can talk to the court sites. The static GitHub Pages copy cannot scrape.",
+  },
+  {
+    title: "Cause lists",
+    body: "Board → Scan lists walks published SAT, NCLT and Bombay High Court boards for the next few days. Your matters are tagged. Watched firms (Settings) surface other listed cases. Tap Add to practice to look up that case and save it. List PDF downloads the day’s board.",
+  },
+  {
+    title: "Next date and refresh",
+    body: "Refresh on the docket re-reads the court record, updates the next listing if you have not overridden it, and downloads any new orders. The cyan date tile is that next date. You can still type a listing by hand for courts this app does not scrape.",
+  },
+  {
+    title: "Orders",
+    body: "Each order on the court record can be viewed in-page or saved as a PDF. Missing orders download in batches of five. Excerpts are pulled from the PDF so the hearing brief can quote the last operative directions.",
+  },
+  {
+    title: "Hearing brief",
+    body: "On the docket, Draft brief writes a chambers note from the last orders, open tasks and hearing notes. It never runs in the background.",
+  },
+  {
+    title: "Watch list and backup",
+    body: "Settings holds the firms you watch on cause lists, how many days ahead to scan, and desktop notifications when one of yours is listed today. Export JSON to back up; import the original Matter Tracker matters.json.",
+  },
+  {
     title: "Caption marks",
     body: "Every line of the cause title is centred unless it starts with L:. Wrap a phrase in **double asterisks** to bold it. Put a tab between a party’s name and “…Petitioner” to send the designation to the right margin — the same convention as a Word right-aligned tab.",
   },
@@ -14,11 +38,11 @@ const BLOCKS = [
   },
   {
     title: "Papers",
-    body: "Drop PDFs in hearing order — several at once; duplicates are skipped. Use page-from / page-to to keep only the holding. Star the authorities you will actually open. Kind tags (authority, exhibit, pleading…) drive chronology. Read cite and Holding pull the first pages.",
+    body: "Drop PDFs in hearing order — several at once; duplicates are skipped. Court orders already sit here after a fetch. Use page-from / page-to to keep only the holding. Star the authorities you will actually open.",
   },
   {
     title: "Hearing mode",
-    body: "A full-screen deck of starred authorities with the actual PDF page on screen. Pinpoints jump to the holding pages. Arrows turn papers; up/down or space turns pages. Copy the cite, keep a private speaking note, and see which issue the paper goes to. On a phone, More → Notes / holding.",
+    body: "A full-screen deck of starred authorities with the actual PDF page on screen. Pinpoints jump to the holding pages. Arrows turn papers; up/down or space turns pages.",
   },
   {
     title: "Issues to argue",
@@ -26,23 +50,15 @@ const BLOCKS = [
   },
   {
     title: "Chronology and TOA",
-    body: "Chronology sorts on the date column. Table of authorities groups Supreme Court, High Courts, NCLT/NCLAT and the rest. Both export as Word. Tap a row to open that paper in hearing.",
+    body: "Chronology sorts on the date column. Table of authorities groups Supreme Court, High Courts, NCLT/NCLAT and the rest. Both export as Word.",
   },
   {
     title: "Limitation desk",
     body: "Working calculator for common Indian windows (suit, WS, SLP, s. 34, NCLAT). Pin the due date onto the matter. Confirm the article before you diary it — this is not legal advice.",
   },
   {
-    title: "Volumes",
-    body: "Set a page cap on Style (many registries dislike files over ~250 pages). The build splits into Volume I of N, each with its own cover and index, and downloads a zip.",
-  },
-  {
-    title: "Stamps and gutters",
-    body: "DRAFT / CONFIDENTIAL / PRIVILEGED watermarks sit under the text. A binding gutter adds left margin for a comb or hole punch. Bates prefixes format as P-000001.",
-  },
-  {
     title: "Where files live",
-    body: "Matters and PDFs are stored in this browser only. Nothing is uploaded except when you tap Clean caption, Read cite, Holding or Draft from starred. Use Backup zip before switching machines. Ctrl+Z undoes the last edit.",
+    body: "Matters, listings and PDFs stay in this browser. Court fetch talks to bombayhighcourt.gov.in, sat.gov.in and nclt.gov.in from the local server. Nothing is uploaded except when you tap Clean caption, Read cite, Holding, Draft brief or Draft from starred. Use Backup zip or Settings → Export before switching machines.",
   },
 ];
 

@@ -1,14 +1,17 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
-import { BookOpen, CalendarRange, Gavel, ListOrdered, Plus, Timer } from "lucide-react";
+import { useEffect, useState } from "react";
+import { BookOpen, CalendarRange, Gavel, ListOrdered, Plus, RefreshCw, Timer } from "lucide-react";
 import { AppBar } from "@/components/metro/app-bar";
 import { Field, MetroArea, MetroButton, MetroInput, MetroSelect } from "@/components/metro/controls";
 import { PageShell } from "@/components/metro/shell";
-import { dayPhrase, partyCaption } from "@/lib/binder/docket";
+import { dayPhrase, downloadHearingsIcs, partyCaption } from "@/lib/binder/docket";
 import { daysUntil } from "@/lib/binder/dates";
+import { loadBytes } from "@/lib/binder/idb";
+import { pullMissingOrders, refreshMatter } from "@/lib/binder/orders";
 import { useBinder } from "@/lib/binder/store";
-import type { MatterStatus } from "@/lib/binder/types";
-import { cn } from "@/lib/utils";
+import { draftHearingBrief } from "@/lib/court/actions";
+import type { MatterStatus, OrderMeta } from "@/lib/binder/types";
+import { canFetchCourt, caseLabel, cn, downloadBlob, forumOf } from "@/lib/utils";
 
 export const Route = createFileRoute("/docket")({ component: DocketPage });
 
@@ -34,10 +37,21 @@ function DocketPage() {
   const removeIssue = useBinder((s) => s.removeIssue);
   const status = useBinder((s) => s.status);
   const statusKind = useBinder((s) => s.statusKind);
+  const setStatus = useBinder((s) => s.setStatus);
   const [taskText, setTaskText] = useState("");
   const [taskDue, setTaskDue] = useState("");
   const [note, setNote] = useState("");
   const [issueText, setIssueText] = useState("");
+  const [brief, setBrief] = useState("");
+  const [briefing, setBriefing] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [viewer, setViewer] = useState<{ url: string; name: string } | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (viewer) URL.revokeObjectURL(viewer.url);
+    };
+  }, [viewer]);
 
   if (!ready) {
     return (
@@ -51,17 +65,21 @@ function DocketPage() {
     return (
       <PageShell title="docket" backTo="/">
         <p className="mb-4 max-w-xl text-sm text-muted leading-relaxed">
-          No matter is open. A matter is the case file — parties, listing, tasks — and an optional binder for the
-          hearing.
+          No matter is open. Fetch a live record from Bombay High Court, SAT or NCLT, or start a blank docket for any
+          other court.
         </p>
-        <MetroButton
-          variant="accent"
-          onClick={() => {
-            newMatter();
-          }}
-        >
-          New matter
-        </MetroButton>
+        <div className="flex flex-wrap gap-2">
+          <MetroButton variant="accent" onClick={() => void navigate({ to: "/fetch" })}>
+            From court
+          </MetroButton>
+          <MetroButton
+            onClick={() => {
+              newMatter();
+            }}
+          >
+            Blank docket
+          </MetroButton>
+        </div>
       </PageShell>
     );
   }
@@ -69,13 +87,138 @@ function DocketPage() {
   const n = daysUntil(matter.config.hearingDate);
   const openTasks = (matter.tasks ?? []).filter((t) => !t.done).length;
 
+  async function openOrder(o: OrderMeta) {
+    const id = o.docId;
+    if (!id) {
+      setStatus("PDF is not downloaded yet. Refresh the matter.", "err");
+      return;
+    }
+    const buf = await loadBytes(id);
+    if (!buf) {
+      setStatus("PDF is not downloaded yet. Refresh the matter.", "err");
+      return;
+    }
+    if (viewer) URL.revokeObjectURL(viewer.url);
+    setViewer({
+      url: URL.createObjectURL(new Blob([buf], { type: "application/pdf" })),
+      name: o.title || o.doc || "Order",
+    });
+  }
+
+  async function saveOrder(o: OrderMeta) {
+    const id = o.docId;
+    if (!id) {
+      setStatus("PDF is not downloaded yet.", "err");
+      return;
+    }
+    const buf = await loadBytes(id);
+    if (!buf) {
+      setStatus("PDF is not downloaded yet.", "err");
+      return;
+    }
+    downloadBlob(new Blob([buf], { type: "application/pdf" }), `${o.title || "order"}.pdf`);
+  }
+
   return (
     <main className="min-h-dvh bg-bg pb-28 text-fg">
       <PageShell title={partyCaption(matter).toLowerCase()} backTo="/" backLabel="start">
         <p className="mb-8 max-w-2xl text-sm text-muted leading-relaxed text-pretty">
-          This is the case, not the PDF. Fill parties and the next listing here. Open the binder only when you need a
-          compilation, exhibit volume or convenience set.
+          This is the case, not the PDF. Fetch from Bombay High Court, SAT or NCLT for the live record — or type parties
+          and the next listing by hand. Open the binder when you need a compilation.
         </p>
+
+        {forumOf(matter) ? (
+          <div className="mb-8 max-w-3xl bg-chrome px-5 py-5">
+            <p className="label-caps mb-2">Court record</p>
+            <p className="font-mono text-sm">{caseLabel(matter) || matter.config.caseNumber}</p>
+            <p className="mt-1 text-xs text-muted">
+              {matter.sideLabel || matter.config.court}
+              {matter.courtStatus ? ` · ${matter.courtStatus}` : ""}
+              {matter.cnr ? ` · ${matter.cnr}` : ""}
+              {matter.lastRefresh ? ` · refreshed ${matter.lastRefresh}` : ""}
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3 text-sm">
+              <div>
+                <p className="label-caps">Next date (court)</p>
+                <p>{matter.nextListing || "—"}</p>
+              </div>
+              <div>
+                <p className="label-caps">{forumOf(matter) === "sat" ? "AL number" : "Registered"}</p>
+                <p>
+                  {forumOf(matter) === "sat"
+                    ? matter.lodging || "—"
+                    : matter.registrationDate || "—"}
+                </p>
+              </div>
+              <div>
+                <p className="label-caps">Stage / act</p>
+                <p>{[matter.stage, matter.act].filter(Boolean).join(" · ") || "—"}</p>
+              </div>
+              <div>
+                <p className="label-caps">Petitioner’s advocate</p>
+                <p>{matter.petitionerAdv || "—"}</p>
+              </div>
+              <div>
+                <p className="label-caps">Respondent’s advocate</p>
+                <p>{matter.respondentAdv || "—"}</p>
+              </div>
+              <div>
+                <p className="label-caps">Orders</p>
+                <p>
+                  {matter.orders.filter((o) => o.downloaded).length}/{matter.orders.length} downloaded
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <MetroButton
+                variant="accent"
+                disabled={refreshing || !canFetchCourt(matter)}
+                onClick={async () => {
+                  setRefreshing(true);
+                  setStatus("Refreshing court record…", "busy");
+                  const r = await refreshMatter(matter);
+                  setRefreshing(false);
+                  if (!r.ok) setStatus(r.error, "err");
+                  else setStatus(`${r.added} new order(s).`, "ok");
+                }}
+              >
+                {refreshing ? "Refreshing…" : "Refresh from court"}
+              </MetroButton>
+              <MetroButton
+                disabled={refreshing}
+                onClick={async () => {
+                  setRefreshing(true);
+                  setStatus("Downloading missing orders…", "busy");
+                  const r = await pullMissingOrders(matter);
+                  setRefreshing(false);
+                  setStatus(`${r.added} order(s) saved.`, "ok");
+                }}
+              >
+                Download missing orders
+              </MetroButton>
+              <MetroButton
+                onClick={() => {
+                  try {
+                    const n = downloadHearingsIcs([matter]);
+                    setStatus(`Exported ${n} calendar event${n === 1 ? "" : "s"}.`, "ok");
+                  } catch (e) {
+                    setStatus(e instanceof Error ? e.message : "No upcoming dates.", "err");
+                  }
+                }}
+              >
+                Calendar
+              </MetroButton>
+            </div>
+          </div>
+        ) : (
+          <p className="mb-6 max-w-xl text-sm text-muted">
+            This docket is manual. To pull parties, next date and orders from the court website, add it{" "}
+            <button type="button" className="text-accent" onClick={() => void navigate({ to: "/fetch" })}>
+              from court
+            </button>
+            .
+          </p>
+        )}
 
         {n != null ? (
           <div className={cn("mb-8 max-w-xl px-5 py-6", n <= 0 ? "bg-tile-crimson" : "bg-tile-cyan")}>
@@ -343,37 +486,151 @@ function DocketPage() {
           )}
         </section>
 
-        <section className="max-w-3xl">
-          <p className="label-caps mb-3">Orders</p>
+        <section className="mb-12 max-w-3xl">
+          <p className="label-caps mb-3">Orders · {(matter.orders ?? []).length}</p>
           <p className="mb-3 text-sm text-muted">
-            Manual diary of what came on the last date. This app does not fetch from the court website.
+            {canFetchCourt(matter)
+              ? "Fetched from the court website. View opens the PDF in this page; Save downloads it."
+              : "Manual diary of what came on the last date — or add the matter from court to pull PDFs."}
           </p>
-          <MetroButton className="mb-4" onClick={() => addOrder({ title: "Order", coram: matter.lastCoram })}>
-            Add order
-          </MetroButton>
-          <ul className="space-y-4">
-            {(matter.orders ?? []).map((o) => (
-              <li key={o.id} className="bg-chrome p-4 space-y-3">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Title">
-                    <MetroInput value={o.title} onChange={(e) => updateOrder(o.id, { title: e.target.value })} />
-                  </Field>
-                  <Field label="Date">
-                    <MetroInput value={o.date} onChange={(e) => updateOrder(o.id, { date: e.target.value })} />
-                  </Field>
-                </div>
-                <Field label="Coram">
-                  <MetroInput value={o.coram} onChange={(e) => updateOrder(o.id, { coram: e.target.value })} />
-                </Field>
-                <Field label="Holding / excerpt">
-                  <MetroArea rows={3} value={o.excerpt} onChange={(e) => updateOrder(o.id, { excerpt: e.target.value })} />
-                </Field>
-                <MetroButton variant="danger" className="min-h-9 px-3 text-xs" onClick={() => removeOrder(o.id)}>
-                  Remove
+          <div className="mb-4 flex flex-wrap gap-2">
+            <MetroButton onClick={() => addOrder({ title: "Order", coram: matter.lastCoram })}>
+              Add order by hand
+            </MetroButton>
+            {canFetchCourt(matter) ? (
+              <MetroButton
+                disabled={refreshing}
+                onClick={async () => {
+                  setRefreshing(true);
+                  setStatus("Downloading missing orders…", "busy");
+                  const r = await pullMissingOrders(matter);
+                  setRefreshing(false);
+                  setStatus(`${r.added} order(s) saved.`, "ok");
+                }}
+              >
+                Download missing
+              </MetroButton>
+            ) : null}
+          </div>
+          {viewer ? (
+            <div className="mb-4 border border-line">
+              <div className="flex items-center justify-between bg-chrome px-4 py-2">
+                <p className="truncate text-sm">{viewer.name}</p>
+                <MetroButton
+                  className="min-h-9 px-3 text-xs"
+                  onClick={() => {
+                    URL.revokeObjectURL(viewer.url);
+                    setViewer(null);
+                  }}
+                >
+                  Close
                 </MetroButton>
-              </li>
-            ))}
+              </div>
+              <iframe title={viewer.name} src={viewer.url} className="h-[70vh] w-full bg-bg" />
+            </div>
+          ) : null}
+          <ul className="space-y-4">
+            {[...(matter.orders ?? [])]
+              .sort((a, b) =>
+                b.date.split("/").reverse().join("").localeCompare(a.date.split("/").reverse().join("")),
+              )
+              .map((o) => (
+                <li key={o.id} className="bg-chrome p-4 space-y-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold">{o.title || o.doc || "Order"}</p>
+                      <p className="text-xs text-muted">
+                        {o.date || "—"}
+                        {o.coram ? ` · ${o.coram}` : ""}
+                        {o.downloaded ? " · downloaded" : ""}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {o.docId || o.downloaded ? (
+                        <>
+                          <MetroButton
+                            className="min-h-9 px-3 text-xs"
+                            onClick={() => void openOrder(o)}
+                          >
+                            View
+                          </MetroButton>
+                          <MetroButton
+                            className="min-h-9 px-3 text-xs"
+                            onClick={() => void saveOrder(o)}
+                          >
+                            Save
+                          </MetroButton>
+                        </>
+                      ) : null}
+                      <MetroButton variant="danger" className="min-h-9 px-3 text-xs" onClick={() => removeOrder(o.id)}>
+                        Remove
+                      </MetroButton>
+                    </div>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Title">
+                      <MetroInput value={o.title} onChange={(e) => updateOrder(o.id, { title: e.target.value })} />
+                    </Field>
+                    <Field label="Date">
+                      <MetroInput value={o.date} onChange={(e) => updateOrder(o.id, { date: e.target.value })} />
+                    </Field>
+                  </div>
+                  <Field label="Coram">
+                    <MetroInput value={o.coram} onChange={(e) => updateOrder(o.id, { coram: e.target.value })} />
+                  </Field>
+                  <Field label="Holding / excerpt">
+                    <MetroArea rows={3} value={o.excerpt} onChange={(e) => updateOrder(o.id, { excerpt: e.target.value })} />
+                  </Field>
+                </li>
+              ))}
           </ul>
+        </section>
+
+        <section className="max-w-3xl">
+          <p className="label-caps mb-3">Hearing brief</p>
+          <p className="mb-3 text-sm text-muted leading-relaxed">
+            Drafted from the last orders, open tasks and hearing notes. You start it — it is never run in the background.
+          </p>
+          <MetroButton
+            disabled={briefing}
+            onClick={async () => {
+              setBriefing(true);
+              setStatus("Drafting hearing brief…", "busy");
+              const res = await draftHearingBrief({
+                data: {
+                  caption: partyCaption(matter),
+                  caseno: caseLabel(matter) || matter.config.caseNumber,
+                  status: matter.courtStatus || matter.status,
+                  listing: matter.config.hearingDate || matter.nextListing,
+                  coram: matter.lastCoram,
+                  tasks: (matter.tasks ?? []).filter((s) => !s.done).map((s) => s.text),
+                  notes: (matter.hearingNotes ?? []).map((n) => n.text).filter(Boolean),
+                  excerpts: (matter.orders ?? [])
+                    .filter((o) => o.excerpt)
+                    .slice(0, 3)
+                    .map((o) => ({
+                      date: o.date,
+                      doc: o.doc || o.title,
+                      text: o.excerpt || "",
+                    })),
+                },
+              });
+              setBriefing(false);
+              if (!res.ok) {
+                setStatus(res.error, "err");
+                return;
+              }
+              setBrief(res.text);
+              setStatus("Brief drafted.", "ok");
+            }}
+          >
+            {briefing ? "Drafting…" : "Draft brief"}
+          </MetroButton>
+          {brief ? (
+            <pre className="mt-4 whitespace-pre-wrap bg-chrome p-4 font-sans text-sm leading-relaxed">{brief}</pre>
+          ) : (
+            <p className="mt-3 text-sm text-muted">Download orders first so the brief can quote the last operative directions.</p>
+          )}
         </section>
       </PageShell>
       <AppBar
@@ -401,6 +658,22 @@ function DocketPage() {
           },
         ]}
         overflow={[
+          {
+            id: "refresh",
+            label: "Refresh court",
+            icon: <RefreshCw />,
+            disabled: refreshing || !canFetchCourt(matter),
+            onClick: () => {
+              void (async () => {
+                setRefreshing(true);
+                setStatus("Refreshing court record…", "busy");
+                const r = await refreshMatter(matter);
+                setRefreshing(false);
+                if (!r.ok) setStatus(r.error, "err");
+                else setStatus(`${r.added} new order(s).`, "ok");
+              })();
+            },
+          },
           {
             id: "toa",
             label: "Authorities",

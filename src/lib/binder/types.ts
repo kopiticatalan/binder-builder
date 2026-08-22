@@ -21,6 +21,9 @@ export type PaperKind =
   | "affidavit"
   | "other";
 export type MatterStatus = "Pending" | "Disposed" | "";
+export type Forum = "bhc" | "sat" | "nclt";
+export type Side = "1" | "2";
+export type StampReg = "R" | "S";
 
 export interface Column {
   id: string;
@@ -92,6 +95,11 @@ export interface OrderMeta {
   title: string;
   coram: string;
   excerpt: string;
+  key?: string;
+  srl?: string;
+  doc?: string;
+  downloaded?: boolean;
+  docId?: string;
 }
 
 export interface Issue {
@@ -154,6 +162,27 @@ export interface Matter {
   orders: OrderMeta[];
   issues: Issue[];
   sample?: boolean;
+  forum?: Forum;
+  bench: string;
+  benchLabel: string;
+  side?: Side;
+  sideLabel: string;
+  stampreg?: StampReg;
+  stampregLabel: string;
+  caseType: string;
+  typeName: string;
+  caseNo: string;
+  year: string;
+  cnr: string;
+  lodging: string;
+  petitionerAdv: string;
+  respondentAdv: string;
+  act: string;
+  disposalDate: string;
+  registrationDate: string;
+  nextListing: string;
+  lastRefresh: string;
+  courtStatus: string;
 }
 
 export interface CourtTemplate {

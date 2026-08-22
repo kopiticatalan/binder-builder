@@ -3,14 +3,17 @@ import {
   BookOpen,
   CalendarRange,
   CheckSquare,
+  Download,
   Folder,
   Gavel,
   LayoutTemplate,
   ListOrdered,
   Play,
   Plus,
+  Radar,
   Scale,
   Search,
+  Settings,
   Timer,
 } from "lucide-react";
 import { StatusBar } from "@/components/metro/status-bar";
@@ -18,9 +21,11 @@ import { ClockTile, Tile } from "@/components/metro/tile";
 import { MetroButton } from "@/components/metro/controls";
 import { ACCENTS, ACCENT_LABELS, effectivePages, type AccentId } from "@/lib/binder/types";
 import { allOpenTasks, boardRows, dayPhrase, partyCaption } from "@/lib/binder/docket";
-import { daysUntil } from "@/lib/binder/dates";
+import { daysUntil, prettyCourtDay } from "@/lib/binder/dates";
+import { useCourt } from "@/lib/binder/court-store";
+import { runCauselistScan } from "@/lib/binder/scan";
 import { useBinder } from "@/lib/binder/store";
-import { cn } from "@/lib/utils";
+import { cn, publicUrl } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({ component: StartHub });
 
@@ -36,6 +41,9 @@ function StartHub() {
   const accent = useBinder((s) => s.accent);
   const setAccent = useBinder((s) => s.setAccent);
   const toggleTask = useBinder((s) => s.toggleTask);
+  const setStatus = useBinder((s) => s.setStatus);
+  const listings = useCourt((s) => s.listings);
+  const settings = useCourt((s) => s.settings);
   const pages = active?.docs.reduce((a, d) => a + effectivePages(d), 0) ?? 0;
   const board = boardRows(matters);
   const todayBoard = board.filter((r) => r.days === 0);
@@ -46,6 +54,11 @@ function StartHub() {
     return n != null && n < 0;
   }).length;
   const hasSample = matters.some((m) => m.sample);
+  const today = prettyCourtDay(new Date());
+  const listedToday = new Set(
+    listings.rows.filter((r) => r.tracked && r.date_full === today.full).map((r) => r.number),
+  ).size;
+  const trackedRows = listings.rows.filter((r) => r.tracked).slice(0, 8);
 
   function openDocket(id: string) {
     setActive(id);
@@ -66,8 +79,8 @@ function StartHub() {
             today
           </h1>
           <p className="mb-8 max-w-xl text-sm text-muted leading-relaxed text-pretty">
-            A matter is the case — parties, listing, tasks. The binder is optional: drop PDFs when you need a compilation
-            for a hearing. Nothing leaves this device.
+            Add a matter from Bombay High Court, SAT or NCLT. Scan published cause lists. Download orders onto this
+            device. The binder is optional — drop PDFs when you need a compilation.
           </p>
 
           {!ready ? (
@@ -76,19 +89,54 @@ function StartHub() {
             <div className="grid max-w-4xl grid-cols-2 gap-3">
               <ClockTile color={accent} />
               <Tile
+                color="cyan"
+                wide
+                title="From court"
+                live="BHC · SAT · NCLT"
+                subtitle="Find the case, save orders"
+                icon={<Radar className="size-7" />}
+                to="/fetch"
+              />
+              <Tile
                 color="crimson"
                 wide
                 title="Board"
                 live={
-                  todayBoard.length
-                    ? `${todayBoard.length} listed today`
-                    : soonBoard.length
-                      ? `${soonBoard.length} in the next two days`
-                      : "Nothing listed yet"
+                  listedToday
+                    ? `${listedToday} listed today`
+                    : todayBoard.length
+                      ? `${todayBoard.length} diary’d today`
+                      : soonBoard.length
+                        ? `${soonBoard.length} in the next two days`
+                        : listings.generated_at
+                          ? "Nothing of yours listed"
+                          : "Scan to see lists"
                 }
-                subtitle="Hearings you have diary’d"
+                subtitle="Live cause lists + diary"
                 icon={<CalendarRange className="size-7" />}
                 to="/listings"
+              />
+              <Tile
+                color="teal"
+                title="Scan lists"
+                live={listings.scanning ? "Scanning…" : listings.generated_at ? listings.generated_at : "Not yet"}
+                subtitle={`${settings.scan_days}-day horizon`}
+                icon={<Radar className="size-6" />}
+                onClick={() => {
+                  void (async () => {
+                    void navigate({ to: "/listings" });
+                    const r = await runCauselistScan(settings.scan_days);
+                    if (r.ok) setStatus(`Cause lists updated · ${r.rows} row(s).`, "ok");
+                    else setStatus(r.error, "err");
+                  })();
+                }}
+              />
+              <Tile
+                color="steel"
+                title="Blank docket"
+                subtitle="Any court, typed by hand"
+                icon={<Plus className="size-6" />}
+                onClick={startMatter}
               />
               <Tile
                 color="teal"
@@ -99,13 +147,6 @@ function StartHub() {
                 to="/tasks"
               />
               <Tile
-                color="cyan"
-                title="New matter"
-                subtitle="Blank docket — any court"
-                icon={<Plus className="size-6" />}
-                onClick={startMatter}
-              />
-              <Tile
                 color="cobalt"
                 wide
                 title="Open last"
@@ -113,12 +154,12 @@ function StartHub() {
                 subtitle={
                   active
                     ? `${active.config.caseNumber || "No case no."} · ${active.docs.length} papers`
-                    : "Start a matter first"
+                    : "Fetch or start a matter first"
                 }
                 icon={<Play className="size-7" />}
                 onClick={() => {
                   if (active) void navigate({ to: "/docket" });
-                  else startMatter();
+                  else void navigate({ to: "/fetch" });
                 }}
               />
               <Tile
@@ -128,6 +169,27 @@ function StartHub() {
                 subtitle="Practice on this device"
                 icon={<Folder className="size-6" />}
                 to="/matters"
+              />
+              <Tile
+                color="steel"
+                title="Settings"
+                subtitle="Watch list, backup, alerts"
+                icon={<Settings className="size-6" />}
+                to="/settings"
+              />
+              <Tile
+                color="cobalt"
+                wide
+                title="Mac app"
+                live="Unzip · drag to Applications"
+                subtitle="Right-click → Open. Court fetch runs on your Mac."
+                icon={<Download className="size-7" />}
+                onClick={() => {
+                  const a = document.createElement("a");
+                  a.href = publicUrl("Binder-Builder-for-Mac.zip");
+                  a.download = "Binder-Builder-for-Mac.zip";
+                  a.click();
+                }}
               />
               <Tile
                 color="steel"
@@ -154,7 +216,7 @@ function StartHub() {
               <Tile
                 color="teal"
                 title="How to"
-                subtitle="What this can and cannot do"
+                subtitle="Fetch, scan, compile"
                 icon={<BookOpen className="size-6" />}
                 to="/guide"
               />
@@ -199,31 +261,59 @@ function StartHub() {
 
         <section className="hub-pane">
           <h2 className="panorama-title">board</h2>
-          <p className="mb-6 text-sm text-muted">Listings you typed on each docket. This is your diary, not a scraped cause list.</p>
-          {soonBoard.length === 0 ? (
+          <p className="mb-6 text-sm text-muted">
+            {listings.generated_at
+              ? `Last scan ${listings.generated_at}. Your matters on published lists, then diary dates.`
+              : "Scan published cause lists, or type a next listing on the docket."}
+          </p>
+          {trackedRows.length === 0 && soonBoard.length === 0 ? (
             <div className="max-w-md">
-              <p className="mb-4 text-muted">Nothing in the next two days. Open a matter and set the next listing.</p>
-              <MetroButton variant="accent" onClick={startMatter}>
-                New matter
-              </MetroButton>
+              <p className="mb-4 text-muted">Nothing on the board yet.</p>
+              <div className="flex flex-wrap gap-2">
+                <MetroButton variant="accent" onClick={() => void navigate({ to: "/fetch" })}>
+                  From court
+                </MetroButton>
+                <MetroButton onClick={() => void navigate({ to: "/listings" })}>Scan lists</MetroButton>
+              </div>
             </div>
           ) : (
             <ul className="divide-y divide-line border border-line">
-              {soonBoard.map((r) => (
-                <li key={r.id}>
+              {trackedRows.map((r, i) => (
+                <li key={`scan-${i}`}>
                   <button
                     type="button"
                     className="flex w-full flex-col items-start gap-1 px-4 py-4 text-left"
-                    onClick={() => openDocket(r.id)}
+                    onClick={() => {
+                      if (r.mid) openDocket(r.mid);
+                      else void navigate({ to: "/listings" });
+                    }}
                   >
-                    <span className="font-display text-2xl font-light leading-none">{r.name}</span>
+                    <span className="font-display text-2xl font-light leading-none">{r.matter}</span>
                     <span className="text-xs text-muted">
-                      {r.caseNumber || "No case number"} · {r.court || "Court not set"} · {dayPhrase(r.days)}
-                      {r.stage ? ` · ${r.stage}` : ""}
+                      {r.date} · {r.number}
+                      {r.list_type ? ` · ${r.list_type}` : ""}
+                      {r.judge ? ` · ${r.judge}` : ""}
                     </span>
                   </button>
                 </li>
               ))}
+              {soonBoard
+                .filter((r) => !trackedRows.some((t) => t.mid === r.id))
+                .map((r) => (
+                  <li key={r.id}>
+                    <button
+                      type="button"
+                      className="flex w-full flex-col items-start gap-1 px-4 py-4 text-left"
+                      onClick={() => openDocket(r.id)}
+                    >
+                      <span className="font-display text-2xl font-light leading-none">{r.name}</span>
+                      <span className="text-xs text-muted">
+                        {r.caseNumber || "No case number"} · {r.court || "Court not set"} · {dayPhrase(r.days)}
+                        {r.stage ? ` · ${r.stage}` : ""}
+                      </span>
+                    </button>
+                  </li>
+                ))}
             </ul>
           )}
         </section>

@@ -453,6 +453,27 @@ export function emptyDocket(): Pick<
   | "orders"
   | "issues"
   | "sample"
+  | "forum"
+  | "bench"
+  | "benchLabel"
+  | "side"
+  | "sideLabel"
+  | "stampreg"
+  | "stampregLabel"
+  | "caseType"
+  | "typeName"
+  | "caseNo"
+  | "year"
+  | "cnr"
+  | "lodging"
+  | "petitionerAdv"
+  | "respondentAdv"
+  | "act"
+  | "disposalDate"
+  | "registrationDate"
+  | "nextListing"
+  | "lastRefresh"
+  | "courtStatus"
 > {
   return {
     petitioner: "",
@@ -470,6 +491,27 @@ export function emptyDocket(): Pick<
     orders: [],
     issues: [],
     sample: false,
+    forum: undefined,
+    bench: "",
+    benchLabel: "",
+    side: undefined,
+    sideLabel: "",
+    stampreg: undefined,
+    stampregLabel: "",
+    caseType: "",
+    typeName: "",
+    caseNo: "",
+    year: "",
+    cnr: "",
+    lodging: "",
+    petitionerAdv: "",
+    respondentAdv: "",
+    act: "",
+    disposalDate: "",
+    registrationDate: "",
+    nextListing: "",
+    lastRefresh: "",
+    courtStatus: "",
   };
 }
 

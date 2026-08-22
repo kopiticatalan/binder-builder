@@ -3,6 +3,7 @@ import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { ACCENTS } from "@/lib/binder/types";
 import { useBinder } from "@/lib/binder/store";
+import { useCourt } from "@/lib/binder/court-store";
 import { useEffect } from "react";
 import appCss from "../styles.css?url";
 
@@ -16,9 +17,8 @@ export const Route = createRootRoute({
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: APP_NAME },
       { name: "theme-color", content: "#000000" },
-      {
-        name: "description",
-        content: "Metro court file: docket, binder, live PDF hearing deck, chronology, table of authorities, limitation desk.",
+      { name: "description",
+        content: "Metro chambers desk: fetch Bombay HC / SAT / NCLT records, scan cause lists, download orders, compile binders.",
       },
     ],
     links: [
@@ -42,6 +42,9 @@ function RootShell() {
   const accent = useBinder((s) => s.accent);
   useEffect(() => {
     void hydrate();
+    void Promise.resolve(useCourt.persist.rehydrate()).then(() => {
+      useCourt.getState().setHydrated();
+    });
   }, [hydrate]);
 
   return (

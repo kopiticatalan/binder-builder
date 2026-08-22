@@ -14,10 +14,12 @@ import { Route as BinderRouteImport } from './routes/binder'
 import { Route as ChronoRouteImport } from './routes/chrono'
 import { Route as DeskRouteImport } from './routes/desk'
 import { Route as DocketRouteImport } from './routes/docket'
+import { Route as FetchRouteImport } from './routes/fetch'
 import { Route as GuideRouteImport } from './routes/guide'
 import { Route as HearingRouteImport } from './routes/hearing'
 import { Route as ListingsRouteImport } from './routes/listings'
 import { Route as MattersRouteImport } from './routes/matters'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as TemplatesRouteImport } from './routes/templates'
 import { Route as ToaRouteImport } from './routes/toa'
@@ -47,6 +49,11 @@ const DocketRoute = DocketRouteImport.update({
   path: '/docket',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FetchRoute = FetchRouteImport.update({
+  id: '/fetch',
+  path: '/fetch',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GuideRoute = GuideRouteImport.update({
   id: '/guide',
   path: '/guide',
@@ -65,6 +72,11 @@ const ListingsRoute = ListingsRouteImport.update({
 const MattersRoute = MattersRouteImport.update({
   id: '/matters',
   path: '/matters',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TasksRoute = TasksRouteImport.update({
@@ -89,10 +101,12 @@ export interface FileRoutesByFullPath {
   '/chrono': typeof ChronoRoute
   '/desk': typeof DeskRoute
   '/docket': typeof DocketRoute
+  '/fetch': typeof FetchRoute
   '/guide': typeof GuideRoute
   '/hearing': typeof HearingRoute
   '/listings': typeof ListingsRoute
   '/matters': typeof MattersRoute
+  '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
   '/templates': typeof TemplatesRoute
   '/toa': typeof ToaRoute
@@ -103,10 +117,12 @@ export interface FileRoutesByTo {
   '/chrono': typeof ChronoRoute
   '/desk': typeof DeskRoute
   '/docket': typeof DocketRoute
+  '/fetch': typeof FetchRoute
   '/guide': typeof GuideRoute
   '/hearing': typeof HearingRoute
   '/listings': typeof ListingsRoute
   '/matters': typeof MattersRoute
+  '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
   '/templates': typeof TemplatesRoute
   '/toa': typeof ToaRoute
@@ -118,10 +134,12 @@ export interface FileRoutesById {
   '/chrono': typeof ChronoRoute
   '/desk': typeof DeskRoute
   '/docket': typeof DocketRoute
+  '/fetch': typeof FetchRoute
   '/guide': typeof GuideRoute
   '/hearing': typeof HearingRoute
   '/listings': typeof ListingsRoute
   '/matters': typeof MattersRoute
+  '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
   '/templates': typeof TemplatesRoute
   '/toa': typeof ToaRoute
@@ -134,10 +152,12 @@ export interface FileRouteTypes {
     | '/chrono'
     | '/desk'
     | '/docket'
+    | '/fetch'
     | '/guide'
     | '/hearing'
     | '/listings'
     | '/matters'
+    | '/settings'
     | '/tasks'
     | '/templates'
     | '/toa'
@@ -148,10 +168,12 @@ export interface FileRouteTypes {
     | '/chrono'
     | '/desk'
     | '/docket'
+    | '/fetch'
     | '/guide'
     | '/hearing'
     | '/listings'
     | '/matters'
+    | '/settings'
     | '/tasks'
     | '/templates'
     | '/toa'
@@ -162,10 +184,12 @@ export interface FileRouteTypes {
     | '/chrono'
     | '/desk'
     | '/docket'
+    | '/fetch'
     | '/guide'
     | '/hearing'
     | '/listings'
     | '/matters'
+    | '/settings'
     | '/tasks'
     | '/templates'
     | '/toa'
@@ -177,10 +201,12 @@ export interface RootRouteChildren {
   ChronoRoute: typeof ChronoRoute
   DeskRoute: typeof DeskRoute
   DocketRoute: typeof DocketRoute
+  FetchRoute: typeof FetchRoute
   GuideRoute: typeof GuideRoute
   HearingRoute: typeof HearingRoute
   ListingsRoute: typeof ListingsRoute
   MattersRoute: typeof MattersRoute
+  SettingsRoute: typeof SettingsRoute
   TasksRoute: typeof TasksRoute
   TemplatesRoute: typeof TemplatesRoute
   ToaRoute: typeof ToaRoute
@@ -223,6 +249,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocketRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/fetch': {
+      id: '/fetch'
+      path: '/fetch'
+      fullPath: '/fetch'
+      preLoaderRoute: typeof FetchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/guide': {
       id: '/guide'
       path: '/guide'
@@ -249,6 +282,13 @@ declare module '@tanstack/react-router' {
       path: '/matters'
       fullPath: '/matters'
       preLoaderRoute: typeof MattersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tasks': {
@@ -281,10 +321,12 @@ const rootRouteChildren: RootRouteChildren = {
   ChronoRoute: ChronoRoute,
   DeskRoute: DeskRoute,
   DocketRoute: DocketRoute,
+  FetchRoute: FetchRoute,
   GuideRoute: GuideRoute,
   HearingRoute: HearingRoute,
   ListingsRoute: ListingsRoute,
   MattersRoute: MattersRoute,
+  SettingsRoute: SettingsRoute,
   TasksRoute: TasksRoute,
   TemplatesRoute: TemplatesRoute,
   ToaRoute: ToaRoute,

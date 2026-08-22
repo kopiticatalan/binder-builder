@@ -22,6 +22,7 @@ import type {
 } from "./types";
 import { blankDoc } from "./types";
 import { PDFDocument } from "pdf-lib";
+import { useCourt } from "./court-store";
 
 export type StatusKind = "idle" | "ok" | "err" | "busy";
 export type PaperSort = "order" | "date" | "name" | "flagged" | "kind";
@@ -56,6 +57,9 @@ interface BinderState {
   active: () => Matter | null;
   undo: () => void;
   patchActive: (fn: (m: Matter) => void, opts?: { undo?: boolean }) => void;
+  patchMatter: (id: string, fn: (m: Matter) => void, opts?: { undo?: boolean }) => void;
+  upsertMatter: (m: Matter) => void;
+  importTrackerMatters: (incoming: Matter[]) => { added: number; updated: number };
   newMatter: (templateId?: string) => string;
   loadBlank: () => string;
   duplicateActive: () => string | null;
@@ -73,6 +77,7 @@ interface BinderState {
   toggleTask: (id: string, done?: boolean) => void;
   removeTask: (id: string) => void;
   addNote: (text: string) => void;
+  updateNote: (id: string, patch: Partial<HearingNote>) => void;
   removeNote: (id: string) => void;
   addOrder: (o?: Partial<OrderMeta>) => void;
   updateOrder: (id: string, patch: Partial<OrderMeta>) => void;
@@ -194,21 +199,72 @@ export const useBinder = create<BinderState>((set, get) => ({
   },
 
   patchActive: (fn, opts) => {
+    const id = get().activeId;
+    if (!id) return;
+    get().patchMatter(id, fn, opts);
+  },
+
+  patchMatter: (id, fn, opts) => {
     const { matters, activeId, past } = get();
-    const current = matters.find((m) => m.id === activeId);
+    const current = matters.find((m) => m.id === id);
     if (!current) return;
     const shouldUndo = opts?.undo !== false;
-    const nextPast = shouldUndo ? [...past.slice(-19), cloneMatter(current)] : past;
+    const nextPast = shouldUndo && id === activeId ? [...past.slice(-19), cloneMatter(current)] : past;
     set({
       past: nextPast,
       matters: matters.map((m) => {
-        if (m.id !== activeId) return m;
+        if (m.id !== id) return m;
         const copy = cloneMatter(m);
         fn(copy);
         return touch(copy);
       }),
     });
     schedulePersist(get);
+  },
+
+  upsertMatter: (incoming) => {
+    const { matters } = get();
+    const exists = matters.some((m) => m.id === incoming.id);
+    const next = exists
+      ? matters.map((m) => (m.id === incoming.id ? touch(incoming) : m))
+      : [incoming, ...matters];
+    set({ matters: next, activeId: incoming.id, past: [] });
+    persistNow(get);
+    useCourt.getState().reannotate(next);
+  },
+
+  importTrackerMatters: (incoming) => {
+    const byId = new Map(get().matters.map((m) => [m.id, m]));
+    let added = 0;
+    let updated = 0;
+    for (const m of incoming) {
+      if (byId.has(m.id)) {
+        const old = byId.get(m.id)!;
+        byId.set(m.id, {
+          ...old,
+          ...m,
+          docs: old.docs,
+          columns: old.columns.length ? old.columns : m.columns,
+          config: { ...old.config, ...m.config },
+          hearingNotes: m.hearingNotes?.length ? m.hearingNotes : old.hearingNotes,
+          tasks: m.tasks?.length ? m.tasks : old.tasks,
+          issues: old.issues.length ? old.issues : m.issues,
+          sample: false,
+        });
+        updated += 1;
+      } else {
+        byId.set(m.id, { ...m, sample: false });
+        added += 1;
+      }
+    }
+    const matters = [...byId.values()];
+    set({
+      matters,
+      activeId: get().activeId && matters.some((m) => m.id === get().activeId) ? get().activeId : matters[0]?.id ?? null,
+    });
+    persistNow(get);
+    useCourt.getState().reannotate(matters);
+    return { added, updated };
   },
 
   newMatter: (templateId) => {
@@ -251,6 +307,7 @@ export const useBinder = create<BinderState>((set, get) => ({
     const nextActive = activeId === id ? (next[0]?.id ?? null) : activeId;
     set({ matters: next, activeId: nextActive, past: [] });
     persistNow(get);
+    useCourt.getState().reannotate(next);
   },
 
   setActive: (id) => {
@@ -368,6 +425,12 @@ export const useBinder = create<BinderState>((set, get) => ({
     get().patchActive((m) => {
       m.hearingNotes = [note, ...(m.hearingNotes ?? [])];
     });
+  },
+
+  updateNote: (id, patch) => {
+    get().patchActive((m) => {
+      m.hearingNotes = (m.hearingNotes ?? []).map((n) => (n.id === id ? { ...n, ...patch } : n));
+    }, { undo: false });
   },
 
   removeNote: (id) => {

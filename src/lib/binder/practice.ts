@@ -1,7 +1,7 @@
 import { newId } from "@/lib/utils";
 import { captionFromDocket } from "./docket";
 import { toIsoDate } from "./dates";
-import { DEFAULT_CONFIG } from "./templates";
+import { DEFAULT_CONFIG, emptyDocket } from "./templates";
 import type { BinderConfig, Column, HearingNote, Matter, NextStep, OrderMeta } from "./types";
 
 function iso(offset: number) {
@@ -56,6 +56,7 @@ function matter(opts: {
     docTitle: opts.docTitle,
   };
   const m: Matter = {
+    ...emptyDocket(),
     id: opts.id,
     name: opts.name,
     createdAt: now,

@@ -1,0 +1,17 @@
+Binder Builder for Mac
+======================
+
+1. Unzip this file.
+2. Drag “Binder Builder” into Applications.
+3. Right-click it → Open → Open.
+
+macOS asks once because this is not from the App Store.
+After that, open it like any other app.
+
+Needs Node.js (LTS) from https://nodejs.org — first launch installs
+the rest automatically (a couple of minutes, online).
+
+From court, cause lists and order PDFs work in this Mac app.
+The GitHub Pages site is a static preview and cannot scrape.
+
+Apple Silicon (M1 / M2 / M3 / M4).
