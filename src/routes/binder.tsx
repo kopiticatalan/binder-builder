@@ -37,6 +37,9 @@ function BinderWorkspace() {
   const addPdfFiles = useBinder((s) => s.addPdfFiles);
   const undo = useBinder((s) => s.undo);
   const newMatter = useBinder((s) => s.newMatter);
+  const matters = useBinder((s) => s.matters);
+  const setActive = useBinder((s) => s.setActive);
+  const stampCaptionFromDocket = useBinder((s) => s.stampCaptionFromDocket);
   const [tab, setTab] = useState<Tab>("caption");
 
   useEffect(() => {
@@ -79,18 +82,42 @@ function BinderWorkspace() {
   if (!matter) {
     return (
       <main className="min-h-dvh bg-bg px-4 pt-16 text-fg">
-        <p className="mb-4 max-w-xl text-sm text-muted leading-relaxed">
-          Open a matter first. The binder is the compilation for that case — it is not a separate file.
+        <p className="mb-2 font-display text-5xl font-light">binder</p>
+        <p className="mb-8 max-w-xl text-sm text-muted leading-relaxed">
+          A compilation for a hearing. Use a matter’s title, or start a loose one and type the caption yourself.
         </p>
-        <MetroButton
-          variant="accent"
-          onClick={() => {
-            newMatter();
-            void navigate({ to: "/docket" });
-          }}
-        >
-          New matter
-        </MetroButton>
+        <div className="mb-8 flex flex-wrap gap-2">
+          <MetroButton
+            variant="accent"
+            onClick={() => {
+              newMatter();
+              void navigate({ to: "/binder" });
+            }}
+          >
+            New compilation
+          </MetroButton>
+          <MetroButton onClick={() => void navigate({ to: "/matters" })}>Pick a matter</MetroButton>
+        </div>
+        {matters.length ? (
+          <ul className="max-w-xl divide-y divide-line border border-line">
+            {matters.slice(0, 12).map((m) => (
+              <li key={m.id}>
+                <button
+                  type="button"
+                  className="w-full px-4 py-4 text-left"
+                  onClick={() => {
+                    setActive(m.id);
+                    stampCaptionFromDocket();
+                    void navigate({ to: "/binder" });
+                  }}
+                >
+                  <span className="block font-display text-2xl font-light leading-none">{partyCaption(m)}</span>
+                  <span className="mt-1 block text-xs text-muted">{m.config.caseNumber || m.config.court || "Open"}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </main>
     );
   }
@@ -104,12 +131,11 @@ function BinderWorkspace() {
           onClick={() => void navigate({ to: "/docket" })}
           className="mb-3 text-sm text-accent"
         >
-          ← docket
+          ← matter
         </button>
         <h1 className="panorama-title truncate">{partyCaption(matter).toLowerCase()}</h1>
         <p className="mb-4 max-w-2xl text-sm text-muted leading-relaxed">
-          Four steps: write the cover, drop the PDFs, set how it should look, then build. A template only changes the
-          caption wording and index columns — it does not pick a court for you.
+          Caption from this matter, or type it. Then drop PDFs, set the look, build.
         </p>
         <Pivot tabs={[...TABS]} value={tab} onChange={setTab} />
       </header>

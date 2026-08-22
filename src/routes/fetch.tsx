@@ -122,10 +122,10 @@ function FetchPage() {
   }
 
   return (
-    <PageShell title="from court" backTo="/" backLabel="start">
+    <PageShell title="add from court" backTo="/" backLabel="home">
       <p className="mb-6 max-w-xl text-sm text-muted leading-relaxed text-pretty">
-        Pull the live record from Bombay High Court, SAT or NCLT — parties, next date, orders. Order PDFs are saved on
-        this device and drop into the binder automatically.
+        Look up Bombay High Court, SAT or NCLT. Parties, next date and orders come in. PDFs go into that matter’s
+        folder.
       </p>
       {status && statusKind !== "idle" ? (
         <p

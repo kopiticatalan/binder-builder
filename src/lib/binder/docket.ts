@@ -48,6 +48,16 @@ export function listingDate(m: Matter): string {
   return (m.lastListing || "").trim();
 }
 
+/** Diary date for the week — never falls back to last date. */
+export function nextDate(m: Matter): string {
+  if (m.config.hearingDate.trim()) return m.config.hearingDate.trim();
+  if (m.nextListing.trim()) {
+    const d = parseLooseDate(m.nextListing);
+    if (d) return toIsoDate(d);
+  }
+  return "";
+}
+
 export type BoardRow = {
   id: string;
   name: string;

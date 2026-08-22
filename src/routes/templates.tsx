@@ -15,7 +15,7 @@ function TemplatesPage() {
   const [keep, setKeep] = useState(true);
 
   return (
-    <PageShell title="templates" backTo="/" backLabel="start">
+    <PageShell title="templates" backTo="/" backLabel="home">
       <p className="mb-4 max-w-xl text-sm text-muted leading-relaxed">
         Captions and index columns for the usual Indian and common-law hearings — NCLT, SLP, writ, commercial, trial, arbitration, DRT, consumer, criminal appeal.
       </p>

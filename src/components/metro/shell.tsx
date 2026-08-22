@@ -6,7 +6,7 @@ import { StatusBar } from "./status-bar";
 export function PageShell({
   title,
   backTo,
-  backLabel = "start",
+  backLabel = "home",
   children,
   className,
   kicker,

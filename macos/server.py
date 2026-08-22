@@ -17,7 +17,7 @@ from urllib.parse import unquote, urlparse
 import court
 import forums
 
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 HOST, PORT = "127.0.0.1", 8765
 
 HERE = os.path.dirname(os.path.abspath(__file__))

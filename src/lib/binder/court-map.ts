@@ -78,7 +78,11 @@ export function matterFromLookup(
     respondentAdv: lookup.respondent_adv || "",
     stage: lookup.stage || existing?.stage || "",
     act: lookup.act || "",
-    lastListing: newest?.date || existing?.lastListing || "",
+    lastListing:
+      existing?.lastListing && existing.lastListing !== (existing.courtLastDate || "")
+        ? existing.lastListing
+        : newest?.date || existing?.lastListing || "",
+    courtLastDate: newest?.date || existing?.courtLastDate || "",
     lastCoram: newest?.coram || lookup.last_coram || existing?.lastCoram || "",
     nextListing: lookup.next_listing || existing?.nextListing || "",
     lastRefresh: clockNow(),

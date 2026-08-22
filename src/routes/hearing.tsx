@@ -151,7 +151,7 @@ function HearingPage() {
       <StatusBar />
       <header className="px-4 pt-6 md:px-10 md:pt-8">
         <button type="button" onClick={() => void navigate({ to: "/docket" })} className="mb-3 text-sm text-accent">
-          ← docket
+          ← matter
         </button>
         <p className="label-caps">
           {i + 1} / {deck.length} · {matter.config.hearingDate || "no listing"} · {pinLabel}

@@ -184,6 +184,7 @@ export interface Matter {
   nextListing: string;
   lastRefresh: string;
   courtStatus: string;
+  courtLastDate: string;
   orderFolder: string;
   orderNamePattern: string;
 }

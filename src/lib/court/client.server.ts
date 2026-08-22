@@ -1,5 +1,5 @@
 import type { CaseType, CourtLookup, LookupParams, StampReg } from "@/lib/types";
-import { buildFirmPatterns, parseCauselistEntries } from "@/lib/court/match";
+import { buildFirmPatterns, isTrackedCaseno, parseCauselistEntries } from "@/lib/court/match";
 import {
   CookieJar,
   COURT_SITE,
@@ -222,7 +222,6 @@ export async function scanCauselistPdfs(
   jar?: CookieJar,
 ): Promise<ScanHit[]> {
   const pats = buildFirmPatterns(input.watched);
-  const tracked = new Set(input.tracked.map((t) => t.toUpperCase()));
   const session = jar ?? new CookieJar();
   if (!jar) await courtGet(`${COURT_SITE}/bhc/causelistFinal`, session);
 
@@ -254,7 +253,7 @@ export async function scanCauselistPdfs(
         for (const ad of foldedAdvs[e.serial] || []) {
           if (!advs.includes(ad)) advs.push(ad);
         }
-        const mine = tracked.has(e.caseno.toUpperCase());
+        const mine = isTrackedCaseno(e.caseno, input.tracked);
         if (!mine && !advs.length) continue;
         out.push({
           serial: e.serial,

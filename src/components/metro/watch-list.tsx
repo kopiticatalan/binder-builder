@@ -30,10 +30,8 @@ export function WatchListEditor({ compact = false }: { compact?: boolean }) {
     <div>
       {!compact ? (
         <p className="mb-4 text-sm text-muted leading-relaxed">
-          Cause-list scans flag boards where these names appear — Bombay High Court, SAT and NCLT.
-          Defaults are the original tracker's three: Bharucha & Partners, Advani & Co.,
-          Advani Law LLP. Matching is flexible: “Advani & Co.” also hits “Advani and Co” /
-          “Advani & Company”. Changes save as you type.
+          Extra names to flag on published lists — besides your own matters, which always match. Defaults are Bharucha
+          & Partners, Advani & Co., Advani Law LLP. “Advani & Co.” also hits “Advani and Co”. Saves as you type.
         </p>
       ) : null}
       <ul className={compact ? "mb-3 space-y-2" : "mb-4 space-y-2"}>
@@ -90,7 +88,30 @@ export function WatchListEditor({ compact = false }: { compact?: boolean }) {
 }
 
 export function watchingLabel(watched: string[]) {
-  if (!watched.length) return "No firms on the watch list — only your own matters will flag.";
-  if (watched.length <= 3) return `Watching ${watched.join(" · ")}.`;
-  return `Watching ${watched.slice(0, 2).join(" · ")} and ${watched.length - 2} more.`;
+  if (!watched.length) return "No extra firms — only your matters flag.";
+  if (watched.length <= 3) return watched.join(" · ");
+  return `${watched.slice(0, 2).join(" · ")} +${watched.length - 2}`;
+}
+
+export function WatchListPanel() {
+  const watched = useCourt((s) => s.settings.watched);
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mb-6 max-w-xl">
+      <button
+        type="button"
+        className="flex w-full items-baseline justify-between gap-3 text-left"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="label-caps">Firms we watch</span>
+        <span className="text-xs text-accent">{open ? "Hide" : "Edit"}</span>
+      </button>
+      <p className="mt-1 text-sm text-muted">{watchingLabel(watched) || "None"}</p>
+      {open ? (
+        <div className="mt-4 bg-chrome px-4 py-4">
+          <WatchListEditor compact />
+        </div>
+      ) : null}
+    </div>
+  );
 }

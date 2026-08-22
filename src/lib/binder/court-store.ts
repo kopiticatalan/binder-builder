@@ -4,6 +4,7 @@ import type { ActivityEvent, ListingRow, ListingsState, TrackerSettings } from "
 import { DEFAULT_SETTINGS } from "@/lib/types";
 import { clockNow } from "./dates";
 import { matterCasenos, uid } from "@/lib/utils";
+import { isTrackedCaseno } from "@/lib/court/match";
 import type { Matter } from "./types";
 
 function emptyListings(): ListingsState {
@@ -18,12 +19,8 @@ function emptyListings(): ListingsState {
 }
 
 export function annotateListings(rows: ListingRow[], matters: Matter[]): ListingRow[] {
-  const byNo = new Map<string, Matter>();
-  for (const m of matters) {
-    for (const cn of matterCasenos(m)) byNo.set(cn.toUpperCase(), m);
-  }
   return rows.map((row) => {
-    const m = byNo.get((row.number || "").toUpperCase());
+    const m = matters.find((x) => isTrackedCaseno(row.number, matterCasenos(x)));
     const reasons = (row.reasons || []).filter((r) => r !== "Your matter");
     if (m) {
       return {

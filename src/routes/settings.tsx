@@ -49,9 +49,9 @@ function SettingsPage() {
   });
 
   return (
-    <PageShell title="settings" backTo="/" backLabel="start">
+    <PageShell title="settings" backTo="/" backLabel="home">
       <p className="mb-8 max-w-xl text-sm text-muted leading-relaxed text-pretty">
-        Watch-list, where orders land on disk, scan horizon, notifications, and backup.
+        Firms we watch, where orders land, how many days to scan, alerts, backup.
       </p>
       {status && statusKind !== "idle" ? (
         <p
@@ -68,7 +68,7 @@ function SettingsPage() {
       ) : null}
 
       <section className="mb-10 max-w-xl">
-        <p className="label-caps mb-3">Watch list</p>
+        <p className="label-caps mb-3">Firms we watch</p>
         <WatchListEditor />
       </section>
 

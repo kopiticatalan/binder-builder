@@ -10,7 +10,7 @@ export function fsInfo() {
   return {
     ok: true as const,
     fs: true as const,
-    version: "1.1.1",
+    version: "1.1.2",
     home,
     desktop,
     defaultRoot: join(desktop, "Bombay HC matters"),

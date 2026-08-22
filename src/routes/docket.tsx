@@ -5,7 +5,7 @@ import { AppBar } from "@/components/metro/app-bar";
 import { Field, MetroArea, MetroButton, MetroInput, MetroSelect } from "@/components/metro/controls";
 import { PageShell } from "@/components/metro/shell";
 import { dayPhrase, downloadHearingsIcs, partyCaption } from "@/lib/binder/docket";
-import { daysUntil } from "@/lib/binder/dates";
+import { daysUntil, fromIsoDate, isoFromCourt } from "@/lib/binder/dates";
 import { loadBytes } from "@/lib/binder/idb";
 import {
   NAME_PRESETS,
@@ -69,7 +69,7 @@ function DocketPage() {
 
   if (!ready) {
     return (
-      <PageShell title="docket" backTo="/">
+      <PageShell title="matter" backTo="/" backLabel="home">
         <p className="text-muted">Loading…</p>
       </PageShell>
     );
@@ -77,21 +77,20 @@ function DocketPage() {
 
   if (!matter) {
     return (
-      <PageShell title="docket" backTo="/">
+      <PageShell title="matter" backTo="/" backLabel="home">
         <p className="mb-4 max-w-xl text-sm text-muted leading-relaxed">
-          No matter is open. Fetch a live record from Bombay High Court, SAT or NCLT, or start a blank docket for any
-          other court.
+          No matter is open. Add one from the court website, or by hand.
         </p>
         <div className="flex flex-wrap gap-2">
           <MetroButton variant="accent" onClick={() => void navigate({ to: "/fetch" })}>
-            From court
+            Add from court
           </MetroButton>
           <MetroButton
             onClick={() => {
               newMatter();
             }}
           >
-            Blank docket
+            Blank file
           </MetroButton>
         </div>
       </PageShell>
@@ -142,7 +141,7 @@ function DocketPage() {
       return;
     }
     downloadBlob(new Blob([buf], { type: "application/pdf" }), name);
-    setStatus("Saved to Downloads. The Mac app writes to the folder on this docket.", "ok");
+    setStatus("Saved to Downloads. The Mac app writes to the folder on this file.", "ok");
   }
 
   const defaultRoot = desk?.defaultRoot || "~/Desktop/Bombay HC matters";
@@ -157,10 +156,10 @@ function DocketPage() {
 
   return (
     <main className="min-h-dvh bg-bg pb-28 text-fg">
-      <PageShell title={partyCaption(matter).toLowerCase()} backTo="/" backLabel="start">
+      <PageShell title={partyCaption(matter).toLowerCase()} backTo="/" backLabel="home">
         <p className="mb-8 max-w-2xl text-sm text-muted leading-relaxed text-pretty">
-          This is the case, not the PDF. Fetch from Bombay High Court, SAT or NCLT for the live record — or type parties
-          and the next listing by hand. Open the binder when you need a compilation.
+          The file for this case. Your dates are what you work from — the court website is often late. Open the binder
+          when you need a compilation.
         </p>
 
         {forumOf(matter) ? (
@@ -248,7 +247,7 @@ function DocketPage() {
           </div>
         ) : (
           <p className="mb-6 max-w-xl text-sm text-muted">
-            This docket is manual. To pull parties, next date and orders from the court website, add it{" "}
+            This file is manual. To pull parties, next date and orders from the court website, add it{" "}
             <button type="button" className="text-accent" onClick={() => void navigate({ to: "/fetch" })}>
               from court
             </button>
@@ -258,15 +257,64 @@ function DocketPage() {
 
         {n != null ? (
           <div className={cn("mb-8 max-w-xl px-5 py-6", n <= 0 ? "bg-tile-crimson" : "bg-tile-cyan")}>
-            <p className="label-caps text-fg/80">Next listing</p>
+            <p className="label-caps text-fg/80">Your next date</p>
             <p className="font-display text-4xl font-light leading-none">{dayPhrase(n)}</p>
             <p className="mt-2 text-sm text-fg/85">
-              {matter.config.hearingDate}
+              {fromIsoDate(matter.config.hearingDate) || matter.config.hearingDate}
               {matter.lastCoram ? ` · ${matter.lastCoram}` : ""}
               {matter.stage ? ` · ${matter.stage}` : ""}
             </p>
+            {matter.nextListing && isoFromCourt(matter.nextListing) !== matter.config.hearingDate ? (
+              <p className="mt-2 text-xs text-fg/70">Court website says {matter.nextListing}</p>
+            ) : null}
           </div>
         ) : null}
+
+        <div className="mb-10 grid max-w-3xl gap-4 sm:grid-cols-2">
+          <Field label="Your next date" hint="What you work from. Type over it when the site is late.">
+            <MetroInput
+              type="date"
+              value={matter.config.hearingDate}
+              onChange={(e) => patchConfig({ hearingDate: e.target.value })}
+            />
+          </Field>
+          <Field label="Court website next date">
+            <div className="flex flex-wrap gap-2">
+              <MetroInput value={matter.nextListing} readOnly placeholder="Not on the site" />
+              {matter.nextListing ? (
+                <MetroButton
+                  className="min-h-11"
+                  onClick={() => {
+                    const iso = isoFromCourt(matter.nextListing);
+                    if (iso) patchConfig({ hearingDate: iso });
+                  }}
+                >
+                  Use this
+                </MetroButton>
+              ) : null}
+            </div>
+          </Field>
+          <Field label="Your last date">
+            <MetroInput
+              type="date"
+              value={isoFromCourt(matter.lastListing)}
+              onChange={(e) => patchDocket({ lastListing: e.target.value ? fromIsoDate(e.target.value) : "" })}
+            />
+          </Field>
+          <Field label="Last order on court record">
+            <div className="flex flex-wrap gap-2">
+              <MetroInput value={matter.courtLastDate || ""} readOnly placeholder="No order yet" />
+              {matter.courtLastDate ? (
+                <MetroButton
+                  className="min-h-11"
+                  onClick={() => patchDocket({ lastListing: matter.courtLastDate })}
+                >
+                  Use this
+                </MetroButton>
+              ) : null}
+            </div>
+          </Field>
+        </div>
 
         <div className="mb-10 grid max-w-3xl gap-4 sm:grid-cols-2">
           <Field label="Petitioner / plaintiff">
@@ -291,13 +339,6 @@ function DocketPage() {
             <MetroInput
               value={matter.config.caseNumber}
               onChange={(e) => patchConfig({ caseNumber: e.target.value })}
-            />
-          </Field>
-          <Field label="Next listing">
-            <MetroInput
-              type="date"
-              value={matter.config.hearingDate}
-              onChange={(e) => patchConfig({ hearingDate: e.target.value })}
             />
           </Field>
           <Field label="Stage">

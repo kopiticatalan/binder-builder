@@ -474,6 +474,7 @@ export function emptyDocket(): Pick<
   | "nextListing"
   | "lastRefresh"
   | "courtStatus"
+  | "courtLastDate"
   | "orderFolder"
   | "orderNamePattern"
 > {
@@ -514,6 +515,7 @@ export function emptyDocket(): Pick<
     nextListing: "",
     lastRefresh: "",
     courtStatus: "",
+    courtLastDate: "",
     orderFolder: "",
     orderNamePattern: "",
   };

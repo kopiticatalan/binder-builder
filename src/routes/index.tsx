@@ -2,26 +2,22 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   BookOpen,
   CalendarRange,
-  CheckSquare,
   Download,
   Folder,
   Gavel,
-  LayoutTemplate,
-  ListOrdered,
-  Play,
   Plus,
   Radar,
   Scale,
-  Search,
   Settings,
-  Timer,
 } from "lucide-react";
 import { StatusBar } from "@/components/metro/status-bar";
 import { ClockTile, Tile } from "@/components/metro/tile";
 import { MetroButton } from "@/components/metro/controls";
-import { ACCENTS, ACCENT_LABELS, effectivePages, type AccentId } from "@/lib/binder/types";
-import { allOpenTasks, boardRows, dayPhrase, partyCaption } from "@/lib/binder/docket";
-import { daysUntil, prettyCourtDay } from "@/lib/binder/dates";
+import { MatterCard } from "@/components/metro/matter-card";
+import { WeekBoard } from "@/components/metro/week-board";
+import { ACCENTS, ACCENT_LABELS, type AccentId } from "@/lib/binder/types";
+import { allOpenTasks, partyCaption } from "@/lib/binder/docket";
+import { daysUntil } from "@/lib/binder/dates";
 import { useCourt } from "@/lib/binder/court-store";
 import { runCauselistScan } from "@/lib/binder/scan";
 import { useBinder } from "@/lib/binder/store";
@@ -42,32 +38,33 @@ function StartHub() {
   const setAccent = useBinder((s) => s.setAccent);
   const toggleTask = useBinder((s) => s.toggleTask);
   const setStatus = useBinder((s) => s.setStatus);
+  const stampCaptionFromDocket = useBinder((s) => s.stampCaptionFromDocket);
   const listings = useCourt((s) => s.listings);
   const settings = useCourt((s) => s.settings);
-  const pages = active?.docs.reduce((a, d) => a + effectivePages(d), 0) ?? 0;
-  const board = boardRows(matters);
-  const todayBoard = board.filter((r) => r.days === 0);
-  const soonBoard = board.filter((r) => r.days >= 0 && r.days <= 2);
   const tasks = allOpenTasks(matters);
-  const overdue = tasks.filter((t) => {
-    const n = daysUntil(t.step.due);
-    return n != null && n < 0;
-  }).length;
   const hasSample = matters.some((m) => m.sample);
-  const today = prettyCourtDay(new Date());
-  const listedToday = new Set(
-    listings.rows.filter((r) => r.tracked && r.date_full === today.full).map((r) => r.number),
-  ).size;
-  const trackedRows = listings.rows.filter((r) => r.tracked).slice(0, 8);
 
-  function openDocket(id: string) {
+  function startCompilation() {
+    const id = newMatter();
     setActive(id);
-    void navigate({ to: "/docket" });
+    void navigate({ to: "/binder" });
   }
 
-  function startMatter() {
-    newMatter();
-    void navigate({ to: "/docket" });
+  function binderForMatter() {
+    if (!active) {
+      void navigate({ to: "/matters" });
+      return;
+    }
+    setActive(active.id);
+    stampCaptionFromDocket();
+    void navigate({ to: "/binder" });
+  }
+
+  async function scan() {
+    setStatus("Scanning published lists. This can take a minute.", "busy");
+    const r = await runCauselistScan(settings.scan_days);
+    if (r.ok) setStatus(`Lists updated · ${r.rows} row(s).`, "ok");
+    else setStatus(r.error, "err");
   }
 
   return (
@@ -75,165 +72,197 @@ function StartHub() {
       <StatusBar />
       <div className="hub-panorama px-4 pt-6 md:px-10">
         <section className="hub-pane">
-          <h1 className="panorama-title">
-            today
-          </h1>
-          <p className="mb-8 max-w-xl text-sm text-muted leading-relaxed text-pretty">
-            Add a matter from Bombay High Court, SAT or NCLT. Scan published cause lists. Download orders onto this
-            device. The binder is optional — drop PDFs when you need a compilation.
+          <h1 className="panorama-title">today</h1>
+          <p className="mb-6 max-w-xl text-sm text-muted leading-relaxed text-pretty">
+            What is listed today, then the next five days. Add a case from the board into my matters. Scan for the rest.
           </p>
 
-          {!ready ? (
-            <p className="text-muted">Loading matters…</p>
+          <div className="mb-8 flex flex-wrap gap-2">
+            <MetroButton variant="accent" onClick={() => void scan()} disabled={listings.scanning}>
+              {listings.scanning ? "Scanning…" : "Scan lists"}
+            </MetroButton>
+            <MetroButton onClick={() => void navigate({ to: "/fetch" })}>Add from court</MetroButton>
+            <MetroButton onClick={() => void navigate({ to: "/matters" })}>My matters</MetroButton>
+            <MetroButton onClick={() => void navigate({ to: "/listings" })}>All lists</MetroButton>
+          </div>
+          {listings.generated_at ? (
+            <p className="mb-6 text-xs text-muted">Last scan {listings.generated_at} · {listings.range_label}</p>
           ) : (
-            <div className="grid max-w-4xl grid-cols-2 gap-3">
-              <ClockTile color={accent} />
-              <Tile
-                color="cyan"
-                wide
-                title="From court"
-                live="BHC · SAT · NCLT"
-                subtitle="Find the case, save orders"
-                icon={<Radar className="size-7" />}
-                to="/fetch"
-              />
-              <Tile
-                color="crimson"
-                wide
-                title="Board"
-                live={
-                  listedToday
-                    ? `${listedToday} listed today`
-                    : todayBoard.length
-                      ? `${todayBoard.length} diary’d today`
-                      : soonBoard.length
-                        ? `${soonBoard.length} in the next two days`
-                        : listings.generated_at
-                          ? "Nothing of yours listed"
-                          : "Scan to see lists"
-                }
-                subtitle="Live cause lists + diary"
-                icon={<CalendarRange className="size-7" />}
-                to="/listings"
-              />
-              <Tile
-                color="teal"
-                title="Scan lists"
-                live={listings.scanning ? "Scanning…" : listings.generated_at ? listings.generated_at : "Not yet"}
-                subtitle={`${settings.scan_days}-day horizon`}
-                icon={<Radar className="size-6" />}
-                onClick={() => {
-                  void (async () => {
-                    void navigate({ to: "/listings" });
-                    const r = await runCauselistScan(settings.scan_days);
-                    if (r.ok) setStatus(`Cause lists updated · ${r.rows} row(s).`, "ok");
-                    else setStatus(r.error, "err");
-                  })();
-                }}
-              />
-              <Tile
-                color="steel"
-                title="Blank docket"
-                subtitle="Any court, typed by hand"
-                icon={<Plus className="size-6" />}
-                onClick={startMatter}
-              />
-              <Tile
-                color="teal"
-                title="Tasks"
-                live={`${tasks.length} open`}
-                subtitle={overdue ? `${overdue} overdue` : "Next steps across matters"}
-                icon={<CheckSquare className="size-6" />}
-                to="/tasks"
-              />
-              <Tile
-                color="cobalt"
-                wide
-                title="Open last"
-                live={active ? partyCaption(active) : "No matter yet"}
-                subtitle={
-                  active
-                    ? `${active.config.caseNumber || "No case no."} · ${active.docs.length} papers`
-                    : "Fetch or start a matter first"
-                }
-                icon={<Play className="size-7" />}
-                onClick={() => {
-                  if (active) void navigate({ to: "/docket" });
-                  else void navigate({ to: "/fetch" });
-                }}
-              />
-              <Tile
-                color="emerald"
-                title="Matters"
-                live={`${matters.length}`}
-                subtitle="Practice on this device"
-                icon={<Folder className="size-6" />}
-                to="/matters"
-              />
-              <Tile
-                color="steel"
-                title="Settings"
-                subtitle="Watch list, backup, alerts"
-                icon={<Settings className="size-6" />}
-                to="/settings"
-              />
-              <Tile
-                color="cobalt"
-                wide
-                title="Mac app"
-                live="Unzip · drag to Applications"
-                subtitle="Right-click → Open. Court fetch on your Mac."
-                icon={<Download className="size-7" />}
-                onClick={() => {
-                  const a = document.createElement("a");
-                  a.href = publicUrl("Binder-Builder-for-Mac.zip");
-                  a.download = "Binder-Builder-for-Mac.zip";
-                  a.click();
-                }}
-              />
-              <Tile
-                color="steel"
-                title="Binder"
-                live={active ? `${pages} pp` : "No papers yet"}
-                subtitle="Cover, papers, PDF"
-                icon={<Scale className="size-6" />}
-                to="/binder"
-              />
-              <Tile
-                color="crimson"
-                title="Hearing"
-                subtitle="Starred authorities, full screen"
-                icon={<Gavel className="size-6" />}
-                to="/hearing"
-              />
-              <Tile
-                color="cobalt"
-                title="Captions"
-                subtitle="Optional court forms"
-                icon={<LayoutTemplate className="size-6" />}
-                to="/templates"
-              />
-              <Tile
-                color="teal"
-                title="How to"
-                subtitle="Fetch, scan, compile"
-                icon={<BookOpen className="size-6" />}
-                to="/guide"
-              />
-              <Tile
-                color="emerald"
-                title={hasSample ? "Clear sample" : "Sample practice"}
-                subtitle={hasSample ? "Remove the four demo matters" : "Four Bombay HC files to click around"}
-                icon={<Folder className="size-6" />}
-                onClick={() => {
-                  if (hasSample) clearSample();
-                  else loadPractice();
-                }}
-              />
-            </div>
+            <p className="mb-6 text-xs text-muted">Lists not scanned yet — your diary dates still show below.</p>
           )}
 
-          <section className="mt-12 max-w-4xl">
+          {!ready ? <p className="text-muted">Loading…</p> : <WeekBoard horizon={5} />}
+        </section>
+
+        <section className="hub-pane">
+          <h2 className="panorama-title">my matters</h2>
+          <p className="mb-6 max-w-xl text-sm text-muted leading-relaxed">
+            Every case on this device. Update orders into the folder, open the file, or reveal it in Finder.
+          </p>
+          <div className="mb-6 flex flex-wrap gap-2">
+            <MetroButton variant="accent" onClick={() => void navigate({ to: "/fetch" })}>
+              Add from court
+            </MetroButton>
+            <MetroButton
+              onClick={() => {
+                newMatter();
+                void navigate({ to: "/docket" });
+              }}
+            >
+              Add by hand
+            </MetroButton>
+            <MetroButton onClick={() => void navigate({ to: "/matters" })}>See all</MetroButton>
+          </div>
+          {matters.length === 0 ? (
+            <p className="text-muted">No matters yet.</p>
+          ) : (
+            <div className="max-w-3xl space-y-3">
+              {matters.slice(0, 6).map((m) => (
+                <MatterCard key={m.id} matter={m} dense />
+              ))}
+              {matters.length > 6 ? (
+                <MetroButton onClick={() => void navigate({ to: "/matters" })}>
+                  All {matters.length} matters
+                </MetroButton>
+              ) : null}
+            </div>
+          )}
+        </section>
+
+        <section className="hub-pane">
+          <h2 className="panorama-title">binder</h2>
+          <p className="mb-6 max-w-xl text-sm text-muted leading-relaxed">
+            A compilation for a hearing — cover, papers, PDF. Use the open matter’s title, or start a loose one and
+            type the caption yourself.
+          </p>
+          <div className="grid max-w-xl grid-cols-2 gap-3">
+            <Tile
+              color="cyan"
+              wide
+              title="This matter"
+              live={active ? partyCaption(active) : "Pick a matter first"}
+              subtitle="Caption from parties"
+              icon={<Scale className="size-7" />}
+              onClick={binderForMatter}
+            />
+            <Tile
+              color="steel"
+              title="New compilation"
+              subtitle="Blank cover, type it yourself"
+              icon={<Plus className="size-6" />}
+              onClick={startCompilation}
+            />
+            <Tile
+              color="crimson"
+              title="Hearing"
+              subtitle="Starred authorities, full screen"
+              icon={<Gavel className="size-6" />}
+              to="/hearing"
+            />
+          </div>
+        </section>
+
+        <section className="hub-pane">
+          <h2 className="panorama-title">tasks</h2>
+          <p className="mb-6 text-sm text-muted">Open next steps. Tap the box to tick; tap the name for the matter.</p>
+          {tasks.length === 0 ? (
+            <p className="text-muted">No open tasks. Add them on a matter.</p>
+          ) : (
+            <ul className="divide-y divide-line border border-line">
+              {tasks.slice(0, 10).map(({ matter, step }) => {
+                const n = daysUntil(step.due);
+                return (
+                  <li key={step.id} className="flex items-start gap-3 px-4 py-4">
+                    <button
+                      type="button"
+                      className="mt-1 grid size-6 shrink-0 place-items-center border-2 border-fg"
+                      aria-label="Mark done"
+                      onClick={() => {
+                        setActive(matter.id);
+                        toggleTask(step.id, true);
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="min-w-0 flex-1 text-left"
+                      onClick={() => {
+                        setActive(matter.id);
+                        void navigate({ to: "/docket" });
+                      }}
+                    >
+                      <span className="block font-display text-2xl font-light leading-none">{step.text}</span>
+                      <span className="mt-1 block text-xs text-muted">
+                        {partyCaption(matter)}
+                        {n == null ? "" : ` · ${n === 0 ? "today" : n === 1 ? "tomorrow" : n < 0 ? `${-n} days ago` : `in ${n} days`}`}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+
+        <section className="hub-pane">
+          <h2 className="panorama-title">more</h2>
+          <p className="mb-6 text-sm text-muted">Settings, sample files, the Mac app.</p>
+          <div className="grid max-w-xl grid-cols-2 gap-3">
+            <ClockTile color={accent} />
+            <Tile
+              color="steel"
+              title="Settings"
+              subtitle="Folders, firms, backup"
+              icon={<Settings className="size-6" />}
+              to="/settings"
+            />
+            <Tile
+              color="cobalt"
+              wide
+              title="Mac app"
+              live="Unzip · drag to Applications"
+              subtitle="Right-click → Open. Court fetch on your Mac."
+              icon={<Download className="size-7" />}
+              onClick={() => {
+                const a = document.createElement("a");
+                a.href = publicUrl("Binder-Builder-for-Mac.zip");
+                a.download = "Binder-Builder-for-Mac.zip";
+                a.click();
+              }}
+            />
+            <Tile
+              color="teal"
+              title="How to"
+              subtitle="Lists, orders, binder"
+              icon={<BookOpen className="size-6" />}
+              to="/guide"
+            />
+            <Tile
+              color="emerald"
+              title={hasSample ? "Clear sample" : "Sample"}
+              subtitle={hasSample ? "Remove the four demo matters" : "Four Bombay HC files"}
+              icon={<Folder className="size-6" />}
+              onClick={() => {
+                if (hasSample) clearSample();
+                else loadPractice();
+              }}
+            />
+            <Tile
+              color="crimson"
+              title="Published lists"
+              live={listings.generated_at || "Not scanned"}
+              subtitle="Cause lists · add from board"
+              icon={<CalendarRange className="size-6" />}
+              to="/listings"
+            />
+            <Tile
+              color="cyan"
+              title="Add from court"
+              subtitle="BHC · SAT · NCLT lookup"
+              icon={<Radar className="size-6" />}
+              to="/fetch"
+            />
+          </div>
+          <section className="mt-12 max-w-xl">
             <p className="label-caps mb-3">Accent</p>
             <div className="flex flex-wrap gap-2">
               {(Object.keys(ACCENTS) as AccentId[]).map((id) => (
@@ -255,182 +284,7 @@ function StartHub() {
                 />
               ))}
             </div>
-            <p className="mt-2 text-xs text-muted">{ACCENT_LABELS[accent]} — pivots, checks and primary actions.</p>
           </section>
-        </section>
-
-        <section className="hub-pane">
-          <h2 className="panorama-title">board</h2>
-          <p className="mb-6 text-sm text-muted">
-            {listings.generated_at
-              ? `Last scan ${listings.generated_at}. Your matters on published lists, then diary dates.`
-              : "Scan published cause lists, or type a next listing on the docket."}
-          </p>
-          {trackedRows.length === 0 && soonBoard.length === 0 ? (
-            <div className="max-w-md">
-              <p className="mb-4 text-muted">Nothing on the board yet.</p>
-              <div className="flex flex-wrap gap-2">
-                <MetroButton variant="accent" onClick={() => void navigate({ to: "/fetch" })}>
-                  From court
-                </MetroButton>
-                <MetroButton onClick={() => void navigate({ to: "/listings" })}>Scan lists</MetroButton>
-              </div>
-            </div>
-          ) : (
-            <ul className="divide-y divide-line border border-line">
-              {trackedRows.map((r, i) => (
-                <li key={`scan-${i}`}>
-                  <button
-                    type="button"
-                    className="flex w-full flex-col items-start gap-1 px-4 py-4 text-left"
-                    onClick={() => {
-                      if (r.mid) openDocket(r.mid);
-                      else void navigate({ to: "/listings" });
-                    }}
-                  >
-                    <span className="font-display text-2xl font-light leading-none">{r.matter}</span>
-                    <span className="text-xs text-muted">
-                      {r.date} · {r.number}
-                      {r.list_type ? ` · ${r.list_type}` : ""}
-                      {r.judge ? ` · ${r.judge}` : ""}
-                    </span>
-                  </button>
-                </li>
-              ))}
-              {soonBoard
-                .filter((r) => !trackedRows.some((t) => t.mid === r.id))
-                .map((r) => (
-                  <li key={r.id}>
-                    <button
-                      type="button"
-                      className="flex w-full flex-col items-start gap-1 px-4 py-4 text-left"
-                      onClick={() => openDocket(r.id)}
-                    >
-                      <span className="font-display text-2xl font-light leading-none">{r.name}</span>
-                      <span className="text-xs text-muted">
-                        {r.caseNumber || "No case number"} · {r.court || "Court not set"} · {dayPhrase(r.days)}
-                        {r.stage ? ` · ${r.stage}` : ""}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-            </ul>
-          )}
-        </section>
-
-        <section className="hub-pane">
-          <h2 className="panorama-title">tasks</h2>
-          <p className="mb-6 text-sm text-muted">Open next steps. Tap the box to tick; tap the name for the docket.</p>
-          {tasks.length === 0 ? (
-            <p className="text-muted">No open tasks. Add them on a matter’s docket.</p>
-          ) : (
-            <ul className="divide-y divide-line border border-line">
-              {tasks.slice(0, 10).map(({ matter, step }) => {
-                const n = daysUntil(step.due);
-                return (
-                  <li key={step.id} className="flex items-start gap-3 px-4 py-4">
-                    <button
-                      type="button"
-                      className="mt-1 grid size-6 shrink-0 place-items-center border-2 border-fg"
-                      aria-label="Mark done"
-                      onClick={() => {
-                        setActive(matter.id);
-                        toggleTask(step.id, true);
-                      }}
-                    />
-                    <button
-                      type="button"
-                      className="min-w-0 flex-1 text-left"
-                      onClick={() => openDocket(matter.id)}
-                    >
-                      <span className="block font-display text-2xl font-light leading-none">{step.text}</span>
-                      <span className="mt-1 block text-xs text-muted">
-                        {partyCaption(matter)}
-                        {n == null ? "" : ` · ${dayPhrase(n)}`}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
-
-        <section className="hub-pane">
-          <h2 className="panorama-title">tools</h2>
-          <p className="mb-6 text-sm text-muted">Hearing-day kit. Swipe back for the board.</p>
-          <div className="grid grid-cols-2 gap-3">
-            <Tile
-              color="crimson"
-              wide
-              title="Hearing"
-              live={active ? `${active.docs.filter((d) => d.flagged).length || active.docs.length} in the deck` : "Star papers first"}
-              subtitle="Live pages, pinpoints, speaking notes"
-              icon={<Gavel className="size-7" />}
-              to="/hearing"
-            />
-            <Tile
-              color="teal"
-              title="Desk"
-              subtitle="Limitation, search, oral note"
-              icon={<Timer className="size-6" />}
-              to="/desk"
-            />
-            <Tile
-              color="cobalt"
-              title="Chronology"
-              subtitle="Papers in date order"
-              icon={<Search className="size-6" />}
-              to="/chrono"
-            />
-            <Tile
-              color="cyan"
-              title="Authorities"
-              subtitle="Table of authorities"
-              icon={<ListOrdered className="size-6" />}
-              to="/toa"
-            />
-            <Tile
-              color="steel"
-              title="Binder"
-              subtitle="Cover, papers, PDF"
-              icon={<Scale className="size-6" />}
-              to="/binder"
-            />
-            <Tile
-              color="emerald"
-              title="Captions"
-              subtitle="Optional court forms"
-              icon={<LayoutTemplate className="size-6" />}
-              to="/templates"
-            />
-          </div>
-        </section>
-
-        <section className="hub-pane">
-          <h2 className="panorama-title">matters</h2>
-          <p className="mb-6 text-sm text-muted">Swipe from start. Tap a tile to open the docket.</p>
-          {matters.length === 0 ? (
-            <p className="text-muted">No matters yet.</p>
-          ) : (
-            <div className="grid grid-cols-2 gap-3">
-              {matters.slice(0, 8).map((m, i) => {
-                const colors: AccentId[] = ["cyan", "cobalt", "teal", "emerald", "crimson", "steel"];
-                const n = daysUntil(m.config.hearingDate);
-                return (
-                  <Tile
-                    key={m.id}
-                    color={colors[i % colors.length]}
-                    wide={i === 0}
-                    title={partyCaption(m)}
-                    live={m.config.caseNumber || m.config.court || m.stage || "Open"}
-                    subtitle={n == null ? `${m.docs.length} papers` : `${dayPhrase(n)} · ${m.docs.length} papers`}
-                    onClick={() => openDocket(m.id)}
-                  />
-                );
-              })}
-            </div>
-          )}
         </section>
       </div>
     </main>

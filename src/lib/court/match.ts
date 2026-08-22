@@ -24,6 +24,44 @@ export function buildFirmPatterns(watched: string[]) {
   return pats;
 }
 
+export function casenoKey(s: string) {
+  const t = (s || "").toUpperCase().replace(/\s+/g, "");
+  const m = t.match(/^([A-Z]{1,12})(?:\(L\)|L)?\/(\d+)\/(\d{4})$/);
+  if (m) {
+    return {
+      abbr: m[1],
+      no: m[2].replace(/^0+/, "") || m[2],
+      year: m[3],
+    };
+  }
+  const n = t.match(/(\d+)\/(\d{4})/);
+  if (n) {
+    return {
+      abbr: "",
+      no: n[1].replace(/^0+/, "") || n[1],
+      year: n[2],
+    };
+  }
+  return null;
+}
+
+/** Your matters match on case number even if the firm name is not on that board. */
+export function isTrackedCaseno(caseno: string, tracked: string[]) {
+  const u = (caseno || "").toUpperCase().trim();
+  if (!u || !tracked?.length) return false;
+  const list = tracked.map((t) => (t || "").toUpperCase().trim()).filter(Boolean);
+  if (list.includes(u)) return true;
+  const a = casenoKey(u);
+  for (const t of list) {
+    if (t === u) return true;
+    const b = casenoKey(t);
+    if (a && b && a.no === b.no && a.year === b.year) {
+      if (!a.abbr || !b.abbr || a.abbr === b.abbr) return true;
+    }
+  }
+  return false;
+}
+
 const CASE_TOKEN = "[A-Z]{2,8}(?:\\([A-Z]+\\))?/\\d+/\\d{4}";
 const LEAD_RE = new RegExp(`(\\d+)\\s+(${CASE_TOKEN})`, "g");
 const CONN_RE = new RegExp(`(?:with|a/?w|along\\s*with)\\s+(${CASE_TOKEN})`, "gi");

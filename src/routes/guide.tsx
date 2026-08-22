@@ -5,16 +5,20 @@ export const Route = createFileRoute("/guide")({ component: GuidePage });
 
 const BLOCKS = [
   {
-    title: "From court",
-    body: "The main way in. Pick Bombay High Court, SAT or NCLT, then the case type, number and year. The live record is fetched — parties, CNR, stage, next listing, advocates, orders. Order PDFs download onto this device and land in the binder as papers. Use the Mac app so this machine can talk to the court sites. The public web page cannot scrape.",
+    title: "Today",
+    body: "Home opens on today, then the next five days — your matters first, then listed cases you can add. Scan published lists from there.",
   },
   {
-    title: "Cause lists",
-    body: "Board → Scan lists walks published SAT, NCLT and Bombay High Court boards for the next few days. Your matters are tagged. Watched firms (on Board, or Settings) surface other listed cases. The original three are Bharucha & Partners, Advani & Co., and Advani Law LLP — add or edit names there; matching treats “&” and “and”, “Co.” and “Company” as the same. Tap Add to practice to look up that case and save it. List PDF downloads the day’s board.",
+    title: "Add from court",
+    body: "Look up Bombay High Court, SAT or NCLT. The live record is fetched — parties, CNR, stage, next date, advocates, orders. Order PDFs write to that matter’s folder in the Mac app.",
   },
   {
-    title: "Next date and refresh",
-    body: "Refresh on the docket re-reads the court record, updates the next listing if you have not overridden it, and downloads any new orders. The cyan date tile is that next date. You can still type a listing by hand for courts this app does not scrape.",
+    title: "Published lists",
+    body: "Lists → Scan walks SAT, NCLT and Bombay High Court boards. Your matters always flag, firm name or not. Extra firm names (collapsed on Lists, or in Settings) surface other listed cases. Add to my matters looks the case up and saves orders.",
+  },
+  {
+    title: "Your dates vs the court site",
+    body: "Your next date is what you work from. Refresh updates the court website date but will not overwrite yours if you typed over it. Use this copies the site’s date when you want it. Same for last date. Court sites often lag.",
   },
   {
     title: "Orders",
@@ -25,7 +29,7 @@ const BLOCKS = [
     body: "On the docket, Draft brief writes a chambers note from the last orders, open tasks and hearing notes. It never runs in the background.",
   },
   {
-    title: "Watch list and backup",
+    title: "Firms and backup",
     body: "Board and Settings hold the firms you watch on cause lists, how many days ahead to scan, and where orders land on disk. Desktop notifications fire when one of yours is listed today. Export JSON to back up; import the original Matter Tracker matters.json.",
   },
   {
@@ -64,7 +68,7 @@ const BLOCKS = [
 
 function GuidePage() {
   return (
-    <PageShell title="how to" backTo="/" backLabel="start">
+    <PageShell title="how to" backTo="/" backLabel="home">
       <ol className="max-w-2xl space-y-8">
         {BLOCKS.map((b, i) => (
           <li key={b.title}>

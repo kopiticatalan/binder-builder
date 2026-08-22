@@ -45,6 +45,8 @@ function matter(opts: {
   hearingNotes: HearingNote[];
   tasks: NextStep[];
   orders: OrderMeta[];
+  nextListing?: string;
+  courtLastDate?: string;
 }): Matter {
   const now = Date.now();
   const config: BinderConfig = {
@@ -82,6 +84,8 @@ function matter(opts: {
     orders: opts.orders,
     issues: [],
     sample: true,
+    nextListing: opts.nextListing || "",
+    courtLastDate: opts.courtLastDate || "",
   };
   m.config.causeTitle = captionFromDocket(m);
   return m;
@@ -107,6 +111,8 @@ export function makePracticeMatters(): Matter[] {
       hearingDate: iso(0),
       appearingFor: "the Petitioner",
       docTitle: "CONVENIENCE COMPILATION ON BEHALF OF THE PETITIONER",
+      nextListing: display(2),
+      courtLastDate: display(-21),
       hearingNotes: [
         {
           id: "n1",

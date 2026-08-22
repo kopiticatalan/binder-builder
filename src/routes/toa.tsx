@@ -20,7 +20,7 @@ function ToaPage() {
 
   if (!matter) {
     return (
-      <PageShell title="authorities" backTo="/" backLabel="start">
+      <PageShell title="authorities" backTo="/" backLabel="home">
         <p className="text-muted">Open a matter first.</p>
       </PageShell>
     );
@@ -31,7 +31,7 @@ function ToaPage() {
       <PageShell
         title="authorities"
         backTo="/docket"
-        backLabel="docket"
+        backLabel="matter"
         kicker={
           <p className="mb-2 max-w-xl text-sm text-muted">
             {matter.name} · {total} cited · {starred} starred. Tap a row to open it in hearing.

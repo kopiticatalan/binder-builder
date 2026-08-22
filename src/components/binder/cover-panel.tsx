@@ -58,9 +58,8 @@ export function CoverPanel({ matter }: { matter: Matter }) {
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.9fr)]">
       <div className="space-y-5">
         <p className="max-w-2xl text-sm text-muted leading-relaxed text-pretty">
-          This is the cover that prints. Court, case number and parties also live on the docket — change them in either
-          place. A caption template (Captions on start) only fills wording; it does not lock you to NCLT or any other
-          forum.
+          Cover for this compilation. “Write from parties” fills court, case number and names from the matter. Or type
+          the caption by hand — nothing forces a court form.
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Petitioner / plaintiff">

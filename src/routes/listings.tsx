@@ -3,16 +3,18 @@ import { useState } from "react";
 import { MetroButton, MetroSelect } from "@/components/metro/controls";
 import { PageShell } from "@/components/metro/shell";
 import { Pivot } from "@/components/metro/pivot";
-import { WatchListEditor, watchingLabel } from "@/components/metro/watch-list";
+import { WatchListPanel } from "@/components/metro/watch-list";
 import { downloadCauselistPdf, resolveListing } from "@/lib/court/client";
 import { courtFailMessage } from "@/lib/court/local";
 import { matterFromLookup } from "@/lib/binder/court-map";
 import { useCourt } from "@/lib/binder/court-store";
 import { boardRows, dayPhrase, downloadHearingsIcs } from "@/lib/binder/docket";
 import { ordersSavedMessage, pullMissingOrders } from "@/lib/binder/orders";
+import { resolvedOrderFolder } from "@/lib/binder/order-files";
 import { runCauselistScan } from "@/lib/binder/scan";
 import { useBinder } from "@/lib/binder/store";
 import type { ListingRow } from "@/lib/types";
+import { deskFs, savePdfToFolder } from "@/lib/court/fs";
 import { downloadBlob, cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/listings")({ component: ListingsPage });
@@ -31,14 +33,16 @@ function ListingsPage() {
   const scanProgress = useCourt((s) => s.scanProgress);
   const log = useCourt((s) => s.log);
   const [pane, setPane] = useState<"lists" | "diary">("lists");
-  const [filter, setFilter] = useState<"all" | "mine" | "watch">("all");
+  const [filter, setFilter] = useState<"all" | "mine" | "watch">("mine");
   const [busyId, setBusyId] = useState("");
 
-  const rows = listings.rows.filter((r) => {
-    if (filter === "mine") return r.tracked;
-    if (filter === "watch") return !r.tracked;
-    return true;
-  });
+  const rows = listings.rows
+    .filter((r) => {
+      if (filter === "mine") return r.tracked;
+      if (filter === "watch") return !r.tracked;
+      return true;
+    })
+    .sort((a, b) => Number(b.tracked) - Number(a.tracked));
   const mine = listings.rows.filter((r) => r.tracked).length;
   const diary = boardRows(matters);
   const upcoming = diary.filter((r) => r.days >= 0);
@@ -47,7 +51,7 @@ function ListingsPage() {
   async function scan() {
     setStatus("Scanning published boards. This can take a minute.", "busy");
     const r = await runCauselistScan(settings.scan_days);
-    if (r.ok) setStatus(`Cause lists updated · ${r.rows} row(s). ${watchingLabel(settings.watched)}`, "ok");
+    if (r.ok) setStatus(`Lists updated · ${r.rows} row(s). Your matters always flag, even without a firm name.`, "ok");
     else setStatus(r.error, "err");
   }
 
@@ -88,8 +92,18 @@ function ListingsPage() {
         return;
       }
       const bin = Uint8Array.from(atob(out.file.base64), (c) => c.charCodeAt(0));
+      const matter = r.mid ? matters.find((m) => m.id === r.mid) : undefined;
+      const desk = await deskFs();
+      if (desk.fs && matter) {
+        const folder = resolvedOrderFolder(matter, settings, desk.defaultRoot);
+        const saved = await savePdfToFolder(folder, out.file.filename, out.file.base64);
+        if (saved?.ok) {
+          setStatus(saved.existed ? `Already in the folder: ${saved.path}` : `Saved to ${saved.path}`, "ok");
+          return;
+        }
+      }
       downloadBlob(new Blob([bin], { type: "application/pdf" }), out.file.filename);
-      setStatus("Cause-list PDF downloaded.", "ok");
+      setStatus(desk.fs ? "Cause-list PDF downloaded." : "Cause-list PDF downloaded.", "ok");
     } catch (e) {
       setStatus(courtFailMessage(e), "err");
     } finally {
@@ -99,9 +113,9 @@ function ListingsPage() {
 
   return (
     <PageShell
-      title="board"
+      title="lists"
       backTo="/"
-      backLabel="start"
+      backLabel="home"
       kicker={
         listings.scanning || scanProgress ? (
           <p className="mt-2 text-sm text-accent">{scanProgress || "Scanning…"}</p>
@@ -113,8 +127,8 @@ function ListingsPage() {
       }
     >
       <p className="mb-6 max-w-xl text-sm text-muted leading-relaxed text-pretty">
-        Scan published Bombay High Court, SAT and NCLT cause lists, then add a listed case into your practice. Diary is
-        the next-listing date on each docket — including dates the court site returned. {watchingLabel(settings.watched)}
+        Published Bombay High Court, SAT and NCLT boards. Your matters are flagged even if the firm name is not on
+        that list. Add anything else into my matters from here.
       </p>
       {status && statusKind !== "idle" ? (
         <p
@@ -133,8 +147,8 @@ function ListingsPage() {
       <div className="mb-6">
         <Pivot
           tabs={[
-            { id: "lists", label: "Cause lists" },
-            { id: "diary", label: "Diary" },
+            { id: "lists", label: "Published lists" },
+            { id: "diary", label: "My dates" },
           ]}
           value={pane}
           onChange={setPane}
@@ -158,26 +172,22 @@ function ListingsPage() {
             <MetroButton variant="accent" disabled={listings.scanning} onClick={() => void scan()}>
               {listings.scanning ? "Scanning…" : "Scan lists"}
             </MetroButton>
-            <MetroButton onClick={() => void navigate({ to: "/fetch" })}>From court</MetroButton>
-            <MetroButton onClick={() => void navigate({ to: "/settings" })}>Settings</MetroButton>
+            <MetroButton onClick={() => void navigate({ to: "/fetch" })}>Add from court</MetroButton>
           </div>
 
-          <div className="mb-6 max-w-xl bg-chrome px-5 py-5">
-            <p className="label-caps mb-3">Watch list</p>
-            <p className="mb-4 text-sm text-muted leading-relaxed">
-              Boards that mention these firms are flagged, same as the original tracker. Add, rename or remove — it
-              saves as you type.
-            </p>
-            <WatchListEditor compact />
-          </div>
+          <WatchListPanel />
 
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <p className="text-sm text-muted">
               {listings.scanning
                 ? "Scan running. Rows appear as each court day finishes."
                 : rows.length
-                  ? `${mine} of your matters on the board.`
-                  : "No results yet. Tap Scan lists."}
+                  ? `${mine} of your matters on these boards.`
+                  : listings.generated_at
+                    ? filter === "mine"
+                      ? "None of yours on these boards. Try All or Firms."
+                      : "Nothing in this view."
+                    : "No scan yet."}
             </p>
             <div className="ml-auto flex gap-1 bg-chrome p-1">
               {(["all", "mine", "watch"] as const).map((k) => (
@@ -190,7 +200,7 @@ function ListingsPage() {
                     filter === k ? "bg-accent text-accent-fg" : "text-muted",
                   )}
                 >
-                  {k === "all" ? "All" : k === "mine" ? "Mine" : "Watch"}
+                  {k === "all" ? "All" : k === "mine" ? "My matters" : "Firms"}
                 </button>
               ))}
             </div>
@@ -284,7 +294,7 @@ function ListingsPage() {
         <>
           <div className="mb-8 flex flex-wrap gap-2">
             <MetroButton variant="accent" onClick={() => void navigate({ to: "/fetch" })}>
-              From court
+              Add from court
             </MetroButton>
             <MetroButton
               onClick={() => {
@@ -300,7 +310,7 @@ function ListingsPage() {
             </MetroButton>
           </div>
           {upcoming.length === 0 ? (
-            <p className="mb-10 text-muted">Nothing upcoming. Fetch a matter or type a next listing on the docket.</p>
+            <p className="mb-10 text-muted">Nothing upcoming. Add a matter or type your next date on the file.</p>
           ) : (
             <BoardList
               rows={upcoming}

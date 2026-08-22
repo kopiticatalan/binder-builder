@@ -4,6 +4,7 @@ import {
   scanSatLists,
 } from "@/lib/court/client";
 import type { ListingRow } from "@/lib/types";
+import { isTrackedCaseno } from "@/lib/court/match";
 import { forumOf, matterCasenos, short } from "@/lib/utils";
 import { prettyCourtDay } from "./dates";
 import { useBinder } from "./store";
@@ -35,10 +36,8 @@ export async function runCauselistScan(numDays: number) {
       for (const hit of sat.hits) {
         const dateKey = hit.href.match(/view-causelist\/(\d{2}-\d{2}-\d{4})/);
         const matchDay = days.find((d) => d.date === (dateKey?.[1] || "")) || days[0];
-        const mine = tracked.some((t) => t.includes(`${hit.no}/${hit.year}`.toUpperCase()));
-        const m = matters.find((x) =>
-          matterCasenos(x).some((c) => c.includes(`${hit.no}/${hit.year}`.toUpperCase())),
-        );
+        const mine = isTrackedCaseno(hit.caseno, tracked) || isTrackedCaseno(`${hit.no}/${hit.year}`, tracked);
+        const m = matters.find((x) => isTrackedCaseno(hit.caseno, matterCasenos(x)));
         allRows.push({
           date: matchDay.short,
           date_full: matchDay.full,
@@ -91,10 +90,8 @@ export async function runCauselistScan(numDays: number) {
         const dmy = (hit.href.match(/(\d{2})[./-](\d{2})[./-](\d{4})/) || []).slice(1);
         const ddmm = dmy.length === 3 ? `${dmy[0]}-${dmy[1]}-${dmy[2]}` : "";
         const matchDay = days.find((d) => d.date === ddmm) || days[0];
-        const mine = tracked.some((t) => t.includes(hit.no) && t.includes(hit.year));
-        const m = matters.find((x) =>
-          matterCasenos(x).some((c) => c.includes(hit.no) && c.includes(hit.year)),
-        );
+        const mine = isTrackedCaseno(hit.caseno, tracked) || isTrackedCaseno(`${hit.no}/${hit.year}`, tracked);
+        const m = matters.find((x) => isTrackedCaseno(hit.caseno, matterCasenos(x)) || isTrackedCaseno(`${hit.no}/${hit.year}`, matterCasenos(x)));
         allRows.push({
           date: matchDay.short,
           date_full: matchDay.full,
@@ -145,8 +142,8 @@ export async function runCauselistScan(numDays: number) {
         continue;
       }
       for (const hit of scanned.hits) {
-        const mine = tracked.includes(hit.caseno.toUpperCase());
-        const m = matters.find((x) => matterCasenos(x).includes(hit.caseno.toUpperCase()));
+        const mine = isTrackedCaseno(hit.caseno, tracked);
+        const m = matters.find((x) => isTrackedCaseno(hit.caseno, matterCasenos(x)));
         const mm = hit.caseno.match(/^([A-Z]+)(\(L\))?\/(\d+)\/(\d{4})$/i);
         allRows.push({
           date: day.short,

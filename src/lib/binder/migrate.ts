@@ -120,6 +120,7 @@ export function migrateMatter(raw: Matter): Matter {
     nextListing: raw.nextListing ?? "",
     lastRefresh: raw.lastRefresh ?? "",
     courtStatus: raw.courtStatus ?? "",
+    courtLastDate: raw.courtLastDate ?? "",
     orderFolder: raw.orderFolder ?? "",
     orderNamePattern: raw.orderNamePattern ?? "",
   };

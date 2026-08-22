@@ -34,9 +34,9 @@ function TasksPage() {
   );
 
   return (
-    <PageShell title="tasks" backTo="/" backLabel="start">
+    <PageShell title="tasks" backTo="/" backLabel="home">
       <p className="mb-6 max-w-xl text-sm text-muted leading-relaxed">
-        Next steps across every matter. Tick one here and it ticks on the docket.
+        Next steps across every matter.
       </p>
 
       <div className="mb-8 flex flex-wrap gap-2">

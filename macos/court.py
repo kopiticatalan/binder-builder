@@ -512,6 +512,38 @@ def adv_patterns(watched):
     return pats
 
 
+def _caseno_key(s):
+    t = re.sub(r"\s+", "", (s or "").upper())
+    m = re.match(r"^([A-Z]{1,12})(?:\(L\)|L)?/(\d+)/(\d{4})$", t)
+    if m:
+        no = m.group(2).lstrip("0") or m.group(2)
+        return m.group(1), no, m.group(3)
+    n = re.search(r"(\d+)/(\d{4})", t)
+    if n:
+        no = n.group(1).lstrip("0") or n.group(1)
+        return "", no, n.group(2)
+    return None
+
+
+def is_tracked(caseno, tracked):
+    u = (caseno or "").upper().strip()
+    if not u:
+        return False
+    listed = [(t or "").upper().strip() for t in (tracked or []) if t]
+    if u in listed:
+        return True
+    a = _caseno_key(u)
+    for t in listed:
+        if t == u:
+            return True
+        b = _caseno_key(t)
+        if a and b and a[1] == b[1] and a[2] == b[2]:
+            if not a[0] or not b[0] or a[0] == b[0]:
+                return True
+    return False
+
+
+
 def match_advocates(text, pats):
     return [name for name, rx in pats if rx.search(text)]
 
@@ -615,7 +647,7 @@ def list_causelist_day(date_ddmm):
 
 def scan_causelist_pdfs(items, watched, tracked, opener=None):
     pats = adv_patterns(watched)
-    tracked_u = set((t or "").upper() for t in (tracked or []))
+    tracked_list = list(tracked or [])
     if opener is None:
         opener = make_opener()
         try:
@@ -652,7 +684,7 @@ def scan_causelist_pdfs(items, watched, tracked, opener=None):
                 for ad in folded_advs.get(e["serial"], []):
                     if ad not in advs:
                         advs.append(ad)
-                mine = e["caseno"].upper() in tracked_u
+                mine = is_tracked(e["caseno"], tracked_list)
                 if not mine and not advs:
                     continue
                 out.append(
@@ -671,6 +703,7 @@ def scan_causelist_pdfs(items, watched, tracked, opener=None):
             return out
         except Exception:
             return []
+
 
     hits = []
     with ThreadPoolExecutor(max_workers=4) as ex:
